@@ -1,0 +1,2311 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Seguimiento | La Casa del Alfarero</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brandRed: '#C8102E',
+                        brandBlue: '#2E4A78',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50 text-gray-800 antialiased font-sans">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // ==========================================
+        // CONFIGURACIÓN DE FIREBASE
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyCpy8H7bwtRPumLGmmDaTdouxrEPu9MPSY",
+            authDomain: "seguimiento-jose-c-paz.firebaseapp.com",
+            projectId: "seguimiento-jose-c-paz",
+            storageBucket: "seguimiento-jose-c-paz.firebasestorage.app",
+            messagingSenderId: "217508939664",
+            appId: "1:217508939664:web:0bc4ad5fbf8d46267c1515"
+        };
+
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+
+        // DICCIONARIOS
+        const gradosMap = {
+            1: "Evangelizada", 2: "Contactada", 3: "Interesada", 4: "Dispuesta",
+            5: "Invitada", 6: "Congregante", 7: "Miembro", 8: "Servidor"
+        };
+
+        const gradosDesc = {
+            1: "Ha escuchado el mensaje del evangelio y recibido la semilla de la palabra de salvación.",
+            2: "Se ha establecido un primer contacto directo de seguimiento, bienvenida o saludo inicial.",
+            3: "Muestra curiosidad genuina, apertura y receptividad hacia las cosas de Dios y la iglesia.",
+            4: "Manifiesta buena disposición y apertura para dar pasos firmes en su fe y crecimiento espiritual.",
+            5: "Asiste de manera activa a las reuniones generales, cultos o eventos especiales de la congregación.",
+            6: "Participa regularmente de los servicios y busca integrarse de lleno a la comunidad de fe.",
+            7: "Ha asumido un compromiso formal, sentido de pertenencia e identidad con la iglesia local.",
+            8: "Colabora activamente en los distintos ministerios, áreas y obras de servicio dentro de la iglesia."
+        };
+
+        const canalesDesc = {
+            "Evangelismo": "La persona llega a la iglesia mediante una invitación directa de los evangelismos, ya sea por cuenta propia mediante los volantes o mediante el seguimiento.",
+            "Allegado": "La persona llega a la iglesia por invitación de un hermano de la iglesia o del compañerismo. Hay un vínculo familiar, amistoso o cercano que abre la posibilidad de invitarlo.",
+            "Redes Sociales": "La persona conoce y visita la iglesia por sus redes sociales.",
+            "Google Maps": "La persona busca congregarse en una iglesia y llega al compañerismo porque busca previamente en su zona y aparece entre las opciones.",
+            "Traspaso": "La persona es un congregante de otra iglesia y por razones particulares busca otro lugar en la que seguir congregando."
+        };
+
+        function App() {
+            const [usuarios, setUsuarios] = React.useState([]);
+            const [personas, setPersonas] = React.useState([]);
+            const [solicitudesClave, setSolicitudesClave] = React.useState([]);
+            const [oracionesPersonales, setOracionesPersonales] = React.useState([]);
+            const [cargandoDatos, setCargandoDatos] = React.useState(true);
+
+            // Estado para el modal flotante de información
+            const [infoModal, setInfoModal] = React.useState(null);
+
+            // Estado para el panel desplegable de notificaciones
+            const [showNotificationsPanel, setShowNotificationsPanel] = React.useState(false);
+
+            // Estado de Archivar
+            const [showArchiveModal, setShowArchiveModal] = React.useState(false);
+            const [archiveMotivo, setArchiveMotivo] = React.useState('Nuevo miembro');
+            const [archiveObs, setArchiveObs] = React.useState('');
+            const [personToArchive, setPersonToArchive] = React.useState(null);
+
+            // Estado de Sesión en el navegador actual
+            const [currentUser, setCurrentUser] = React.useState(() => {
+                try {
+                    const saved = localStorage.getItem('alfarero_current_user');
+                    return saved ? JSON.parse(saved) : null;
+                } catch (e) {
+                    return null;
+                }
+            });
+
+            // IDs de notificaciones leídas por usuario
+            const [readNotificationIds, setReadNotificationIds] = React.useState(() => {
+                try {
+                    const saved = localStorage.getItem('alfarero_read_notifs');
+                    return saved ? JSON.parse(saved) : {};
+                } catch (e) {
+                    return {};
+                }
+            });
+
+            // Formularios de Login y Recuperación
+            const [loginUserInput, setLoginUserInput] = React.useState('');
+            const [loginPassInput, setLoginPassInput] = React.useState('');
+            const [loginError, setLoginError] = React.useState('');
+            const [showForgotModal, setShowForgotModal] = React.useState(false);
+            const [forgotUserInput, setForgotUserInput] = React.useState('');
+            const [forgotSuccessMsg, setForgotSuccessMsg] = React.useState('');
+
+            // Estado para cambio de clave obligatorio
+            const [nuevaClaveObligatoria, setNuevaClaveObligatoria] = React.useState('');
+            const [confirmarClaveObligatoria, setConfirmarClaveObligatoria] = React.useState('');
+            const [errorCambioClave, setErrorCambioClave] = React.useState('');
+
+            // Navegación y Vistas
+            const [activeTab, setActiveTab] = React.useState('dashboard');
+            const [selectedPerson, setSelectedPerson] = React.useState(null);
+            const [isEditingPerson, setIsEditingPerson] = React.useState(false);
+            const [searchTerm, setSearchTerm] = React.useState('');
+            const [filterGrado, setFilterGrado] = React.useState('todos');
+            const [filterCanal, setFilterCanal] = React.useState('todos');
+
+            // Modales
+            const [showNewPersonModal, setShowNewPersonModal] = React.useState(false);
+
+            // Formularios
+            const [newPersonData, setNewPersonData] = React.useState({
+                nombre: '',
+                genero: 'femenino',
+                grado: 3,
+                canal: 'Evangelismo',
+                colaborador: '',
+                telefono: '',
+                direccion: '',
+                perfil: '',
+                temasOracion: '',
+                notasPastor: '',
+                notasColaborador: '',
+                notasPrivadasPastor: ''
+            });
+
+            const [newUserData, setNewUserData] = React.useState({
+                nombre: '',
+                usuario: '',
+                clave: '',
+                rol: 'colaborador'
+            });
+
+            // Formulario para nueva Oración Privada estructurada con ítems dinámicos
+            const [categoriaOracion, setCategoriaOracion] = React.useState('Personales');
+            const [nuevaCategoriaInput, setNuevaCategoriaInput] = React.useState('');
+            const [itemsOracion, setItemsOracion] = React.useState([
+                { motivo: '', detalle: '' }
+            ]);
+
+            const [filtroCategoriaOracion, setFiltroCategoriaOracion] = React.useState('todas');
+
+            // Estado para nuevo evento en el historial de la ficha seleccionada
+            const [nuevoHistorial, setNuevoHistorial] = React.useState({
+                tipo: 'Llamada',
+                fecha: new Date().toISOString().split('T')[0],
+                detalle: ''
+            });
+
+            const [editingPasswordUserId, setEditingPasswordUserId] = React.useState(null);
+            const [newPasswordValue, setNewPasswordValue] = React.useState('');
+
+            // Sincronización con Firestore
+            React.useEffect(() => {
+                const unsubUsuarios = db.collection('usuarios').onSnapshot(snapshot => {
+                    const lista = snapshot.docs.map(doc => ({ idDoc: doc.id, ...doc.data() }));
+                    if (lista.length === 0) {
+                        const iniciales = [
+                            { id: 1, usuario: "pastor", clave: "1234", nombre: "Pastor / Administración", rol: "pastor", debeCambiarClave: false },
+                            { id: 2, usuario: "tatiana", clave: "1234", nombre: "Tatiana Cariddi", rol: "colaborador", debeCambiarClave: false }
+                        ];
+                        iniciales.forEach(u => db.collection('usuarios').add(u));
+                    } else {
+                        setUsuarios(lista);
+                    }
+                }, err => console.error("Error usuarios:", err));
+
+                const unsubPersonas = db.collection('personas').onSnapshot(snapshot => {
+                    const lista = snapshot.docs.map(doc => ({ idDoc: doc.id, ...doc.data() }));
+                    setPersonas(lista);
+                    
+                    setSelectedPerson(prev => {
+                        if (!prev) return null;
+                        const actualizada = lista.find(p => p.idDoc === prev.idDoc || p.id === prev.id);
+                        return actualizada ? actualizada : prev;
+                    });
+                }, err => console.error("Error personas:", err));
+
+                const unsubSolicitudes = db.collection('solicitudesClave').onSnapshot(snapshot => {
+                    const lista = snapshot.docs.map(doc => ({ idDoc: doc.id, ...doc.data() }));
+                    setSolicitudesClave(lista);
+                }, err => console.error("Error solicitudes:", err));
+
+                const unsubOracionesPers = db.collection('oracionesPersonales').onSnapshot(snapshot => {
+                    const lista = snapshot.docs.map(doc => ({ idDoc: doc.id, ...doc.data() }));
+                    setOracionesPersonales(lista);
+                    setCargandoDatos(false);
+                }, error => {
+                    console.error("Error cargando oraciones:", error);
+                    setCargandoDatos(false);
+                });
+
+                return () => {
+                    unsubUsuarios();
+                    unsubPersonas();
+                    unsubSolicitudes();
+                    unsubOracionesPers();
+                };
+            }, []);
+
+            // Control del botón Atrás (historial del navegador móvil)
+            React.useEffect(() => {
+                const handlePopState = () => {
+                    if (showNotificationsPanel) {
+                        setShowNotificationsPanel(false);
+                    } else if (infoModal) {
+                        setInfoModal(null);
+                    } else if (showArchiveModal) {
+                        setShowArchiveModal(false);
+                    } else if (showNewPersonModal) {
+                        setShowNewPersonModal(false);
+                    } else if (selectedPerson) {
+                        setSelectedPerson(null);
+                        setIsEditingPerson(false);
+                    } else if (activeTab !== 'dashboard') {
+                        setActiveTab('dashboard');
+                    }
+                };
+
+                window.addEventListener('popstate', handlePopState);
+                return () => window.removeEventListener('popstate', handlePopState);
+            }, [showNotificationsPanel, infoModal, showArchiveModal, showNewPersonModal, selectedPerson, activeTab]);
+
+            React.useEffect(() => {
+                if (currentUser) {
+                    localStorage.setItem('alfarero_current_user', JSON.stringify(currentUser));
+                } else {
+                    localStorage.removeItem('alfarero_current_user');
+                }
+            }, [currentUser]);
+
+            React.useEffect(() => {
+                try {
+                    localStorage.setItem('alfarero_read_notifs', JSON.stringify(readNotificationIds));
+                } catch (e) {}
+            }, [readNotificationIds]);
+
+            // Usuarios únicos sin duplicados (por usuario o nombre normalizado)
+            const usuariosUnicos = React.useMemo(() => {
+                const map = new Map();
+                usuarios.forEach(u => {
+                    if (!u) return;
+                    const key = (u.usuario || u.nombre || '').toString().trim().toLowerCase();
+                    if (!key) return;
+                    if (!map.has(key)) {
+                        map.set(key, u);
+                    }
+                });
+                return Array.from(map.values());
+            }, [usuarios]);
+
+            const colaboradoresUnicos = React.useMemo(() => {
+                return Array.from(new Set(usuariosUnicos.map(u => u.nombre).filter(Boolean)));
+            }, [usuariosUnicos]);
+
+            // Construcción de notificaciones por usuario con distinción de Importantes y Leídas/No Leídas
+            const notificacionesUsuario = React.useMemo(() => {
+                if (!currentUser) return [];
+
+                const lista = [];
+                const isPastor = currentUser.rol === 'pastor';
+                const myNameLower = (currentUser.nombre || '').trim().toLowerCase();
+                const myUserLower = (currentUser.usuario || '').trim().toLowerCase();
+
+                const matchesCurrentUser = (value) => {
+                    if (!value) return false;
+                    const v = value.toString().trim().toLowerCase();
+                    return v === myNameLower || v === myUserLower;
+                };
+
+                personas.forEach(p => {
+                    if (!p) return;
+                    const assignedToMe = matchesCurrentUser(p.colaborador);
+                    const pKey = p.idDoc || p.id || p.nombre;
+
+                    // 1. Historial / Interacciones
+                    if (Array.isArray(p.historial)) {
+                        p.historial.forEach((h, idx) => {
+                            if (!h) return;
+                            const autorRol = (h.autorRol || '').toString().toLowerCase();
+                            const autorEsPastor = autorRol === 'pastor' || matchesCurrentUser(h.autor) && isPastor;
+                            const autorEsMio = matchesCurrentUser(h.autor);
+
+                            let incluir = false;
+                            let esImportante = false;
+                            let etiquetaImportante = '';
+
+                            if (isPastor) {
+                                if (!autorEsMio) {
+                                    incluir = true;
+                                    if (h.tipo === 'Comentario' || h.tipo === 'Nota') {
+                                        esImportante = true;
+                                        etiquetaImportante = 'Comentario de colaborador';
+                                    }
+                                }
+                            } else {
+                                if (assignedToMe && !autorEsMio) {
+                                    incluir = true;
+                                    if (autorEsPastor || (h.autor && h.autor.toLowerCase().includes('pastor'))) {
+                                        esImportante = true;
+                                        etiquetaImportante = 'Interacción del pastor en tu ficha';
+                                    }
+                                }
+                            }
+
+                            if (incluir) {
+                                const notifId = `hist_${pKey}_${h.id || idx}`;
+                                lista.push({
+                                    id: notifId,
+                                    timestamp: Number(h.id) || idx,
+                                    fecha: h.fecha || '',
+                                    personaIdDoc: p.idDoc,
+                                    personaNombre: p.nombre,
+                                    autor: h.autor || 'Usuario',
+                                    tipo: h.tipo || 'Actualización',
+                                    mensaje: h.detalle || 'Actualización en ficha',
+                                    esImportante,
+                                    etiquetaImportante
+                                });
+                            }
+                        });
+                    }
+
+                    // 2. Comentario / Nota del pastor para el colaborador (Importante para el colaborador asignado)
+                    if (!isPastor && assignedToMe && p.notasPastor && p.notasPastor.trim() !== '') {
+                        const notifId = `nota_pastor_${pKey}_${encodeURIComponent(p.notasPastor.trim().slice(0, 40))}`;
+                        lista.push({
+                            id: notifId,
+                            timestamp: Number(p.id) || 1,
+                            fecha: 'Nota Pastoral',
+                            personaIdDoc: p.idDoc,
+                            personaNombre: p.nombre,
+                            autor: 'Pastor',
+                            tipo: 'Comentario del Pastor',
+                            mensaje: p.notasPastor.trim(),
+                            esImportante: true,
+                            etiquetaImportante: 'Comentario del pastor para ti'
+                        });
+                    }
+
+                    // 3. Comentario / Nota del colaborador para el pastor (Importante para el pastor)
+                    if (isPastor && p.notasColaborador && p.notasColaborador.trim() !== '' && !matchesCurrentUser(p.colaborador)) {
+                        const notifId = `nota_colab_${pKey}_${encodeURIComponent(p.notasColaborador.trim().slice(0, 40))}`;
+                        lista.push({
+                            id: notifId,
+                            timestamp: Number(p.id) || 1,
+                            fecha: 'Nota Colaborador',
+                            personaIdDoc: p.idDoc,
+                            personaNombre: p.nombre,
+                            autor: p.colaborador || 'Colaborador',
+                            tipo: 'Comentario de Colaborador',
+                            mensaje: p.notasColaborador.trim(),
+                            esImportante: true,
+                            etiquetaImportante: 'Comentario del colaborador para el pastor'
+                        });
+                    }
+                });
+
+                lista.sort((a, b) => b.timestamp - a.timestamp);
+                return lista;
+            }, [personas, currentUser]);
+
+            const userReadSet = React.useMemo(() => {
+                if (!currentUser) return new Set();
+                const key = (currentUser.usuario || currentUser.nombre || '').toString().toLowerCase();
+                return new Set(readNotificationIds[key] || []);
+            }, [currentUser, readNotificationIds]);
+
+            const unreadNotificationsCount = React.useMemo(() => {
+                return notificacionesUsuario.filter(n => !userReadSet.has(n.id)).length;
+            }, [notificacionesUsuario, userReadSet]);
+
+            const markNotificationAsRead = (notifId) => {
+                if (!currentUser) return;
+                const key = (currentUser.usuario || currentUser.nombre || '').toString().toLowerCase();
+                setReadNotificationIds(prev => {
+                    const existing = new Set(prev[key] || []);
+                    existing.add(notifId);
+                    return {
+                        ...prev,
+                        [key]: Array.from(existing)
+                    };
+                });
+            };
+
+            const markAllNotificationsAsRead = () => {
+                if (!currentUser) return;
+                const key = (currentUser.usuario || currentUser.nombre || '').toString().toLowerCase();
+                setReadNotificationIds(prev => ({
+                    ...prev,
+                    [key]: notificacionesUsuario.map(n => n.id)
+                }));
+            };
+
+            const handleOpenNotification = (notif) => {
+                markNotificationAsRead(notif.id);
+                setShowNotificationsPanel(false);
+                const persFound = personas.find(p => p.idDoc === notif.personaIdDoc || p.nombre === notif.personaNombre);
+                if (persFound) {
+                    setSelectedPerson(persFound);
+                    setIsEditingPerson(false);
+                }
+            };
+
+            const handleLogin = (e) => {
+                e.preventDefault();
+                const userFound = usuariosUnicos.find(
+                    u => u.usuario.toLowerCase() === loginUserInput.trim().toLowerCase() && u.clave === loginPassInput.trim()
+                );
+                if (userFound) {
+                    setCurrentUser(userFound);
+                    setActiveTab('dashboard');
+                    setLoginError('');
+                    setLoginUserInput('');
+                    setLoginPassInput('');
+                } else {
+                    setLoginError('Usuario o contraseña incorrectos.');
+                }
+            };
+
+            const handleLogout = () => {
+                setCurrentUser(null);
+                setShowNotificationsPanel(false);
+                setActiveTab('dashboard');
+            };
+
+            const handleRequestPasswordReset = (e) => {
+                e.preventDefault();
+                if (!forgotUserInput.trim()) return;
+
+                const userExists = usuariosUnicos.find(u => u.usuario.toLowerCase() === forgotUserInput.trim().toLowerCase());
+                if (!userExists) {
+                    setForgotSuccessMsg('Si el usuario existe, se ha enviado la solicitud al administrador.');
+                    return;
+                }
+
+                const yaExiste = solicitudesClave.some(s => s.usuario.toLowerCase() === forgotUserInput.trim().toLowerCase() && !s.atendida);
+                if (!yaExiste) {
+                    const nuevaSolicitud = {
+                        id: Date.now(),
+                        usuario: userExists.usuario,
+                        nombre: userExists.nombre,
+                        fecha: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString(),
+                        atendida: false
+                    };
+                    db.collection('solicitudesClave').add(nuevaSolicitud);
+                }
+
+                setForgotSuccessMsg('¡Solicitud enviada con éxito! El administrador revisará tu pedido.');
+                setTimeout(() => {
+                    setShowForgotModal(false);
+                    setForgotSuccessMsg('');
+                    setForgotUserInput('');
+                }, 3000);
+            };
+
+            const handleSaveMandatoryPassword = async (e) => {
+                e.preventDefault();
+                if (!nuevaClaveObligatoria || nuevaClaveObligatoria.length < 4) {
+                    setErrorCambioClave('La contraseña debe tener al menos 4 caracteres.');
+                    return;
+                }
+                if (nuevaClaveObligatoria !== confirmarClaveObligatoria) {
+                    setErrorCambioClave('Las contraseñas no coinciden.');
+                    return;
+                }
+
+                const userDoc = usuarios.find(u => u.usuario === currentUser.usuario);
+                if (userDoc && userDoc.idDoc) {
+                    await db.collection('usuarios').doc(userDoc.idDoc).update({
+                        clave: nuevaClaveObligatoria,
+                        debeCambiarClave: false
+                    });
+                }
+
+                const updatedCurrent = { ...currentUser, clave: nuevaClaveObligatoria, debeCambiarClave: false };
+                setCurrentUser(updatedCurrent);
+                setNuevaClaveObligatoria('');
+                setConfirmarClaveObligatoria('');
+                setErrorCambioClave('');
+                alert('¡Contraseña actualizada correctamente!');
+            };
+
+            const handleResolveResetRequest = async (solicitudIdDoc, usuarioLogin, nuevaClaveTemp) => {
+                if (!nuevaClaveTemp) {
+                    alert('Por favor ingrese una contraseña temporal.');
+                    return;
+                }
+
+                const targetUser = usuarios.find(u => u.usuario.toLowerCase() === usuarioLogin.toLowerCase());
+                if (targetUser && targetUser.idDoc) {
+                    await db.collection('usuarios').doc(targetUser.idDoc).update({
+                        clave: nuevaClaveTemp,
+                        debeCambiarClave: true
+                    });
+                }
+
+                await db.collection('solicitudesClave').doc(solicitudIdDoc).update({ atendida: true });
+                alert(`Contraseña restablecida para ${usuarioLogin}. Deberá cambiarla al iniciar sesión.`);
+            };
+
+            const handleCreatePerson = async (e) => {
+                e.preventDefault();
+                if (!newPersonData.nombre.trim()) return;
+
+                const grNum = parseInt(newPersonData.grado);
+                let colabAsignado = newPersonData.colaborador;
+                if (!colabAsignado) {
+                    colabAsignado = currentUser.nombre;
+                }
+
+                const newEntry = {
+                    id: Date.now(),
+                    nombre: newPersonData.nombre,
+                    genero: newPersonData.genero,
+                    grado: grNum,
+                    gradoTexto: gradosMap[grNum],
+                    canal: newPersonData.canal,
+                    colaborador: colabAsignado,
+                    telefono: newPersonData.telefono || '',
+                    direccion: newPersonData.direccion || '',
+                    perfil: newPersonData.perfil || 'Sin datos de perfil.',
+                    temasOracion: newPersonData.temasOracion || '',
+                    notasPastor: newPersonData.notasPastor || '',
+                    notasColaborador: newPersonData.notasColaborador || '',
+                    notasPrivadasPastor: currentUser.rol === 'pastor' ? (newPersonData.notasPrivadasPastor || '') : '',
+                    historial: [
+                        {
+                            id: Date.now(),
+                            tipo: 'Creación',
+                            fecha: new Date().toISOString().split('T')[0],
+                            detalle: `Ficha creada por ${currentUser.nombre}`,
+                            autor: currentUser.nombre,
+                            autorRol: currentUser.rol
+                        }
+                    ],
+                    archivado: false,
+                    motivoArchivo: null,
+                    observacionesArchivo: null
+                };
+
+                await db.collection('personas').add(newEntry);
+                setShowNewPersonModal(false);
+                setNewPersonData({
+                    nombre: '', genero: 'femenino', grado: 3, canal: 'Evangelismo', colaborador: '',
+                    telefono: '', direccion: '', perfil: '', temasOracion: '', notasPastor: '', notasColaborador: '', notasPrivadasPastor: ''
+                });
+            };
+
+            const handleSaveEditedPerson = async (e) => {
+                e.preventDefault();
+                if (selectedPerson && selectedPerson.idDoc) {
+                    const grNum = parseInt(selectedPerson.grado);
+                    
+                    const editItem = {
+                        id: Date.now(),
+                        tipo: 'Actualización',
+                        fecha: new Date().toISOString().split('T')[0],
+                        detalle: `Ficha actualizada por ${currentUser.nombre}`,
+                        autor: currentUser.nombre,
+                        autorRol: currentUser.rol
+                    };
+                    const histActualizado = [editItem, ...(Array.isArray(selectedPerson.historial) ? selectedPerson.historial : [])];
+
+                    const dataToUpdate = {
+                        ...selectedPerson,
+                        grado: grNum,
+                        gradoTexto: gradosMap[grNum],
+                        historial: histActualizado
+                    };
+                    delete dataToUpdate.idDoc;
+                    await db.collection('personas').doc(selectedPerson.idDoc).update(dataToUpdate);
+                }
+                setIsEditingPerson(false);
+                alert('¡Ficha actualizada con éxito!');
+            };
+
+            // Funciones para manejar los ítems dinámicos de la carga de oración
+            const handleAddItemOracion = () => {
+                setItemsOracion([...itemsOracion, { motivo: '', detalle: '' }]);
+            };
+
+            const handleRemoveItemOracion = (index) => {
+                const lista = [...itemsOracion];
+                lista.splice(index, 1);
+                setItemsOracion(lista);
+            };
+
+            const handleItemOracionChange = (index, field, value) => {
+                const lista = [...itemsOracion];
+                lista[index][field] = value;
+                setItemsOracion(lista);
+            };
+
+            const handleSaveOracionPersonal = async (e) => {
+                e.preventDefault();
+                const itemsValidos = itemsOracion.filter(item => item.motivo && item.motivo.trim() !== '');
+                if (itemsValidos.length === 0) {
+                    alert('Por favor completa al menos un motivo de oración.');
+                    return;
+                }
+
+                let catFinal = categoriaOracion;
+                if (catFinal === 'NUEVA') {
+                    if (!nuevaCategoriaInput.trim()) {
+                        alert('Por favor ingresa el nombre de la nueva categoría.');
+                        return;
+                    }
+                    catFinal = nuevaCategoriaInput.trim();
+                }
+
+                const nuevaEntry = {
+                    id: Date.now(),
+                    usuarioId: currentUser.usuario,
+                    autorNombre: currentUser.nombre,
+                    categoria: catFinal,
+                    items: itemsValidos,
+                    fecha: new Date().toLocaleDateString()
+                };
+
+                await db.collection('oracionesPersonales').add(nuevaEntry);
+                setItemsOracion([{ motivo: '', detalle: '' }]);
+                setNuevaCategoriaInput('');
+                alert('¡Temas de oración guardados con éxito!');
+                setActiveTab('verOraciones');
+            };
+
+            const handleDeleteOracionPersonal = async (idDoc) => {
+                if (confirm('¿Eliminar este registro de oración?')) {
+                    await db.collection('oracionesPersonales').doc(idDoc).delete();
+                }
+            };
+
+            const handleAddHistorialItem = async (e) => {
+                e.preventDefault();
+                if (!nuevoHistorial.detalle.trim()) return;
+
+                const newItem = {
+                    id: Date.now(),
+                    tipo: nuevoHistorial.tipo,
+                    fecha: nuevoHistorial.fecha || new Date().toISOString().split('T')[0],
+                    detalle: nuevoHistorial.detalle.trim(),
+                    autor: currentUser.nombre,
+                    autorRol: currentUser.rol
+                };
+
+                const actualizadoHistorial = [newItem, ...(Array.isArray(selectedPerson.historial) ? selectedPerson.historial : [])];
+                const updatedPersonData = { ...selectedPerson, historial: actualizadoHistorial };
+
+                if (selectedPerson.idDoc) {
+                    const dataToDb = { ...updatedPersonData };
+                    delete dataToDb.idDoc;
+                    await db.collection('personas').doc(selectedPerson.idDoc).update(dataToDb);
+                }
+
+                setSelectedPerson(updatedPersonData);
+                setNuevoHistorial({
+                    tipo: 'Llamada',
+                    fecha: new Date().toISOString().split('T')[0],
+                    detalle: ''
+                });
+            };
+
+            const handleDeleteHistorialItem = async (itemId) => {
+                if (confirm('¿Eliminar este registro del historial?')) {
+                    const actualizadoHistorial = selectedPerson.historial.filter(item => item.id !== itemId);
+                    const updatedPersonData = { ...selectedPerson, historial: actualizadoHistorial };
+
+                    if (selectedPerson.idDoc) {
+                        const dataToDb = { ...updatedPersonData };
+                        delete dataToDb.idDoc;
+                        await db.collection('personas').doc(selectedPerson.idDoc).update(dataToDb);
+                    }
+                    setSelectedPerson(updatedPersonData);
+                }
+            };
+
+            const handleDeletePerson = async (personIdDoc) => {
+                if (confirm('¿Estás seguro de eliminar permanentemente esta ficha? Esta acción no se puede deshacer.')) {
+                    await db.collection('personas').doc(personIdDoc).delete();
+                    setSelectedPerson(null);
+                    alert('Ficha eliminada con éxito.');
+                }
+            };
+
+            const handleConfirmArchive = async () => {
+                if (!personToArchive || !personToArchive.idDoc) return;
+                await db.collection('personas').doc(personToArchive.idDoc).update({
+                    archivado: true,
+                    motivoArchivo: archiveMotivo,
+                    observacionesArchivo: archiveObs || 'Sin observaciones.'
+                });
+                setShowArchiveModal(false);
+                setPersonToArchive(null);
+                setArchiveObs('');
+                setSelectedPerson(null);
+                alert('Ficha archivada correctamente.');
+            };
+
+            const handleRestorePerson = async (personIdDoc) => {
+                if (confirm('¿Deseas restaurar esta ficha y volverla a activar para seguimiento?')) {
+                    await db.collection('personas').doc(personIdDoc).update({
+                        archivado: false,
+                        motivoArchivo: null,
+                        observacionesArchivo: null
+                    });
+                    alert('Ficha restaurada al sistema activo.');
+                }
+            };
+
+            const handleCreateUser = async (e) => {
+                e.preventDefault();
+                if (!newUserData.usuario || !newUserData.clave || !newUserData.nombre) return;
+
+                const yaExiste = usuariosUnicos.some(
+                    u => u.usuario.toLowerCase() === newUserData.usuario.toLowerCase().trim()
+                );
+                if (yaExiste) {
+                    alert('Ya existe un usuario con ese nombre de usuario.');
+                    return;
+                }
+
+                const newUser = {
+                    id: Date.now(),
+                    nombre: newUserData.nombre,
+                    usuario: newUserData.usuario.toLowerCase().trim(),
+                    clave: newUserData.clave,
+                    rol: newUserData.rol,
+                    debeCambiarClave: true
+                };
+
+                await db.collection('usuarios').add(newUser);
+                setNewUserData({ nombre: '', usuario: '', clave: '', rol: 'colaborador' });
+                alert('¡Usuario creado con éxito y disponible en la nube! Deberá cambiar su clave al primer ingreso.');
+            };
+
+            const handleChangePasswordAdmin = async (userId, userDocId) => {
+                if (!newPasswordValue.trim()) return;
+                if (userDocId) {
+                    await db.collection('usuarios').doc(userDocId).update({
+                        clave: newPasswordValue.trim(),
+                        debeCambiarClave: true
+                    });
+                }
+                setEditingPasswordUserId(null);
+                setNewPasswordValue('');
+                alert('¡Contraseña restablecida! El usuario deberá cambiarla en su próximo inicio de sesión.');
+            };
+
+            const handleDeleteUser = async (userId, userDocId, rolUsuario) => {
+                if (rolUsuario === 'pastor' && usuariosUnicos.filter(u => u.rol === 'pastor').length <= 1) {
+                    alert('No puedes eliminar al único administrador del sistema.');
+                    return;
+                }
+                if (confirm('¿Estás seguro de eliminar este usuario?')) {
+                    if (userDocId) {
+                        await db.collection('usuarios').doc(userDocId).delete();
+                    }
+                }
+            };
+
+            // Filtrado de personas activas
+            const personasActivas = personas.filter(p => !p.archivado);
+            const personasArchivadas = personas.filter(p => p.archivado);
+
+            // Oraciones privadas del usuario actual con protección contra datos nulos
+            const misOraciones = oracionesPersonales.filter(o => o && currentUser && o.usuarioId === currentUser.usuario);
+
+            // Categorías existentes únicas creadas por el usuario actual o por defecto
+            const categoriasDisponibles = Array.from(new Set([
+                "Personales", "Familia", "Iglesia", "Sanidad", "Liberación", "Discípulos",
+                ...misOraciones.map(o => o.categoria).filter(Boolean)
+            ]));
+
+            const filteredPersonas = personasActivas.filter(p => {
+                const matchName = p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || p.perfil.toLowerCase().includes(searchTerm.toLowerCase()) || (p.direccion && p.direccion.toLowerCase().includes(searchTerm.toLowerCase()));
+                const matchGrado = filterGrado === 'todos' || p.grado.toString() === filterGrado;
+                const matchCanal = filterCanal === 'todos' || p.canal === filterCanal;
+                return matchName && matchGrado && matchCanal;
+            });
+
+            // Versículos de ánimo rotativos diarios
+            const versiculosDeAnimo = [
+                { texto: "Jehová está cerca de los quebrantados de corazón; y salva a los contritos de espíritu.", cita: "Salmos 34:18" },
+                { texto: "Echa sobre Jehová tu carga, y él te sustentará; no dejará para siempre caído al justo.", cita: "Salmos 55:22" },
+                { texto: "No temas, porque yo estoy contigo; no desmayes, porque yo soy tu Dios que te fortalezco; siempre te ayudaré, siempre te sustentaré con la diestra de mi justicia.", cita: "Isaías 41:10" },
+                { texto: "La paz os dejo, mi paz os doy; yo os la doy como el mundo la da. No se turbe vuestro corazón, ni tenga miedo.", cita: "Juan 14:27" },
+                { texto: "Venid a mí todos los que estáis trabajados y cargados, y yo os haré descansar.", cita: "Mateo 11:28" },
+                { texto: "Por nada estéis afanosos, sino ostentar vuestras peticiones delante de Dios en toda oración y ruego, con acción de gracias.", cita: "Filipenses 4:6" },
+                { texto: "Jehová es mi fortaleza y mi escudo; en él confió mi corazón, y fui ayudado.", cita: "Salmos 28:7" }
+            ];
+
+            const diaDelAnio = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
+            const versiculoHoy = versiculosDeAnimo[diaDelAnio % versiculosDeAnimo.length];
+
+            if (cargandoDatos) {
+                return (
+                    <div className="min-h-screen bg-gray-100 flex flex-col justify-center items-center">
+                        <div className="text-center space-y-3">
+                            <div className="w-10 h-10 border-4 border-brandRed border-t-transparent rounded-full animate-spin mx-auto"></div>
+                            <p className="text-xs font-bold text-gray-600 uppercase tracking-wider">Cargando plataforma...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            // 1. PANTALLA DE LOGIN
+            if (!currentUser) {
+                return (
+                    <div className="min-h-screen bg-gray-100 flex flex-col justify-center items-center p-4">
+                        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-gray-200 p-8 space-y-6">
+                            <div className="text-center space-y-3">
+                                <img src="Logo La Casa del Alfarero.png" alt="Logo" className="h-20 mx-auto object-contain" onError={(e)=>{e.target.style.display='none';}} />
+                                <p className="text-xs font-semibold text-brandRed uppercase tracking-wider">Sistema de seguimiento de almas</p>
+                            </div>
+
+                            <form onSubmit={handleLogin} className="space-y-4">
+                                {loginError && (
+                                    <div className="bg-red-50 text-red-700 text-xs p-3 rounded-lg border border-red-200 font-semibold">
+                                        {loginError}
+                                    </div>
+                                )}
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Usuario</label>
+                                    <input 
+                                        type="text" 
+                                        required
+                                        placeholder="Ingrese su usuario"
+                                        value={loginUserInput}
+                                        onChange={(e) => setLoginUserInput(e.target.value)}
+                                        className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brandRed"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Contraseña</label>
+                                    <input 
+                                        type="password" 
+                                        required
+                                        placeholder="••••••••"
+                                        value={loginPassInput}
+                                        onChange={(e) => setLoginPassInput(e.target.value)}
+                                        className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brandRed"
+                                    />
+                                </div>
+                                <button type="submit" className="w-full bg-brandRed text-white font-bold py-3 rounded-lg hover:bg-red-700 transition shadow">
+                                    Ingresar a la Plataforma
+                                </button>
+
+                                <div className="text-center pt-2">
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setShowForgotModal(true)} 
+                                        className="text-xs text-brandBlue font-semibold hover:underline"
+                                    >
+                                        ¿Olvidé mi contraseña?
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        {showForgotModal && (
+                            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                                <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-xl">
+                                    <div className="flex justify-between items-center border-b pb-2">
+                                        <h3 className="font-bold text-gray-900 text-base">Recuperar Contraseña</h3>
+                                        <button onClick={() => setShowForgotModal(false)} className="text-gray-400 font-bold">✕</button>
+                                    </div>
+                                    <p className="text-xs text-gray-600">Ingresa tu nombre de usuario para notificar al administrador que necesitas un cambio de clave.</p>
+                                    
+                                    <form onSubmit={handleRequestPasswordReset} className="space-y-3">
+                                        {forgotSuccessMsg && (
+                                            <div className="bg-emerald-50 text-emerald-800 text-xs p-2 rounded border border-emerald-200 font-semibold">
+                                                {forgotSuccessMsg}
+                                            </div>
+                                        )}
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1">Usuario</label>
+                                            <input 
+                                                type="text" 
+                                                required 
+                                                value={forgotUserInput} 
+                                                onChange={e => setForgotUserInput(e.target.value)} 
+                                                className="w-full p-2 border rounded text-sm" 
+                                                placeholder="Tu usuario" 
+                                            />
+                                        </div>
+                                        <div className="flex justify-end gap-2 pt-2">
+                                            <button type="button" onClick={() => setShowForgotModal(false)} className="px-3 py-1.5 border rounded text-xs">Cancelar</button>
+                                            <button type="submit" className="px-3 py-1.5 bg-brandBlue text-white rounded text-xs font-bold hover:bg-blue-900">Enviar Solicitud</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            // 2. PANTALLA DE CAMBIO DE CLAVE OBLIGATORIO
+            if (currentUser.debeCambiarClave) {
+                return (
+                    <div className="min-h-screen bg-gray-100 flex flex-col justify-center items-center p-4">
+                        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-gray-200 p-8 space-y-6">
+                            <div className="text-center space-y-2">
+                                <h2 className="text-xl font-bold text-gray-900">Cambio de Contraseña Requerido</h2>
+                                <p className="text-xs text-gray-600">Es tu primer ingreso o tu clave ha sido restablecida. Por seguridad, debes establecer una nueva contraseña personal.</p>
+                            </div>
+
+                            <form onSubmit={handleSaveMandatoryPassword} className="space-y-4">
+                                {errorCambioClave && (
+                                    <div className="bg-red-50 text-red-700 text-xs p-3 rounded-lg border border-red-200 font-semibold">
+                                        {errorCambioClave}
+                                    </div>
+                                )}
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Nueva Contraseña</label>
+                                    <input 
+                                        type="password" 
+                                        required
+                                        placeholder="Mínimo 4 caracteres"
+                                        value={nuevaClaveObligatoria}
+                                        onChange={(e) => setNuevaClaveObligatoria(e.target.value)}
+                                        className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brandRed"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Confirmar Nueva Contraseña</label>
+                                    <input 
+                                        type="password" 
+                                        required
+                                        placeholder="Repite la contraseña"
+                                        value={confirmarClaveObligatoria}
+                                        onChange={(e) => setConfirmarClaveObligatoria(e.target.value)}
+                                        className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brandRed"
+                                    />
+                                </div>
+                                <button type="submit" className="w-full bg-brandRed text-white font-bold py-3 rounded-lg hover:bg-red-700 transition shadow">
+                                    Guardar y Continuar
+                                </button>
+                            </form>
+                            <div className="text-center">
+                                <button onClick={handleLogout} className="text-xs text-gray-500 hover:text-gray-800 underline">Cerrar Sesión</button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen flex flex-col bg-gray-100 relative pb-20">
+                    <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-30">
+                        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex flex-col lg:flex-row lg:justify-between lg:items-center gap-2.5 lg:gap-4">
+                            {/* Fila 1: Marca + Acciones rápidas (campanita y salir) */}
+                            <div className="flex items-center justify-between w-full lg:w-auto gap-3">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                    <img
+                                        src="Logo La Casa del Alfarero.png"
+                                        alt="Logo"
+                                        className="h-9 sm:h-10 w-auto object-contain shrink-0"
+                                        onError={(e) => { e.target.style.display = 'none'; }}
+                                    />
+                                    <div className="min-w-0">
+                                        <h1 className="text-sm sm:text-base font-bold text-gray-900 leading-tight truncate">
+                                            La Casa del Alfarero
+                                        </h1>
+                                        <p className="text-[11px] sm:text-xs text-gray-500 font-semibold truncate">
+                                            {currentUser.nombre} • {currentUser.rol === 'pastor' ? 'Pastor / Admin' : 'Colaborador'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Campanita + Cerrar sesión (siempre alineados arriba a la derecha) */}
+                                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                                    <div className="relative">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowNotificationsPanel(prev => !prev)}
+                                            title="Notificaciones"
+                                            className={`relative p-2 rounded-lg border text-sm transition ${
+                                                unreadNotificationsCount > 0
+                                                    ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100'
+                                                    : 'bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200'
+                                            }`}
+                                        >
+                                            <span>🔔</span>
+                                            {unreadNotificationsCount > 0 && (
+                                                <span className="absolute -top-1.5 -right-1.5 bg-brandRed text-white text-[10px] min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center font-extrabold shadow">
+                                                    {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}
+                                                </span>
+                                            )}
+                                        </button>
+
+                                        {showNotificationsPanel && (
+                                            <div className="fixed sm:absolute right-2 sm:right-0 left-2 sm:left-auto mt-2 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
+                                                <div className="px-4 py-3 bg-gray-50 border-b flex justify-between items-center">
+                                                    <div>
+                                                        <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wide">Notificaciones</h3>
+                                                        <p className="text-[11px] text-gray-500">
+                                                            {unreadNotificationsCount} sin leer de {notificacionesUsuario.length}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        {unreadNotificationsCount > 0 && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={markAllNotificationsAsRead}
+                                                                className="text-[11px] font-bold text-brandBlue hover:underline"
+                                                            >
+                                                                Marcar todas leídas
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setShowNotificationsPanel(false)}
+                                                            className="text-gray-400 hover:text-gray-700 font-bold text-sm px-1"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="max-h-96 overflow-y-auto divide-y divide-gray-100">
+                                                    {notificacionesUsuario.length === 0 ? (
+                                                        <div className="p-6 text-center text-xs text-gray-400 italic">
+                                                            No tienes notificaciones por el momento.
+                                                        </div>
+                                                    ) : (
+                                                        notificacionesUsuario.map(notif => {
+                                                            const isUnread = !userReadSet.has(notif.id);
+                                                            return (
+                                                                <div
+                                                                    key={notif.id}
+                                                                    onClick={() => handleOpenNotification(notif)}
+                                                                    className={`p-3.5 cursor-pointer transition text-xs space-y-1.5 ${
+                                                                        notif.esImportante
+                                                                            ? isUnread
+                                                                                ? 'bg-amber-100/80 border-l-4 border-l-brandRed hover:bg-amber-100'
+                                                                                : 'bg-amber-50/30 border-l-4 border-l-amber-300 hover:bg-amber-50/60 opacity-85'
+                                                                            : isUnread
+                                                                                ? 'bg-blue-100/70 border-l-4 border-l-brandBlue hover:bg-blue-100'
+                                                                                : 'bg-white hover:bg-gray-50 opacity-80'
+                                                                    }`}
+                                                                >
+                                                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                                            {isUnread && (
+                                                                                <span className="w-2 h-2 rounded-full bg-brandRed inline-block" title="No leída"></span>
+                                                                            )}
+                                                                            {notif.esImportante && (
+                                                                                <span className="bg-brandRed text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase">
+                                                                                    ⭐ Importante
+                                                                                </span>
+                                                                            )}
+                                                                            <span className="font-extrabold text-gray-900">{notif.personaNombre}</span>
+                                                                        </div>
+                                                                        <span className="text-[10px] text-gray-500 font-medium">{notif.fecha}</span>
+                                                                    </div>
+
+                                                                    {notif.esImportante && notif.etiquetaImportante && (
+                                                                        <p className="text-[11px] font-bold text-amber-900">
+                                                                            {notif.etiquetaImportante} • <span className="font-semibold">{notif.autor}</span>
+                                                                        </p>
+                                                                    )}
+
+                                                                    {!notif.esImportante && (
+                                                                        <p className="text-[11px] text-gray-600">
+                                                                            <strong>{notif.autor}</strong> ({notif.tipo})
+                                                                        </p>
+                                                                    )}
+
+                                                                    <p className={`text-xs ${isUnread ? 'text-gray-900 font-semibold' : 'text-gray-600'}`}>
+                                                                        "{notif.mensaje}"
+                                                                    </p>
+                                                                </div>
+                                                            );
+                                                        })
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={handleLogout}
+                                        title="Cerrar sesión"
+                                        className="text-xs text-gray-600 hover:text-red-600 font-semibold px-2.5 py-2 rounded-lg bg-gray-100 hover:bg-red-50 transition whitespace-nowrap"
+                                    >
+                                        <span className="hidden sm:inline">Cerrar Sesión </span>➔
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Fila 2 (en móvil) / Derecha (en PC): Pestañas en fila deslizable en móvil */}
+                            <nav className="flex bg-gray-100 p-1 rounded-xl text-xs font-semibold gap-1 overflow-x-auto flex-nowrap lg:flex-wrap lg:overflow-visible lg:justify-end">
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('dashboard')}
+                                    className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap shrink-0 ${activeTab === 'dashboard' ? 'bg-brandRed text-white shadow' : 'text-gray-700 hover:bg-gray-200'}`}
+                                >
+                                    Dashboard
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('personas')}
+                                    className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap shrink-0 ${activeTab === 'personas' ? 'bg-brandRed text-white shadow' : 'text-gray-700 hover:bg-gray-200'}`}
+                                >
+                                    Personas ({personasActivas.length})
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('archivados')}
+                                    className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap shrink-0 ${activeTab === 'archivados' ? 'bg-brandRed text-white shadow' : 'text-gray-700 hover:bg-gray-200'}`}
+                                >
+                                    Archivados ({personasArchivadas.length})
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('cargarOracion')}
+                                    className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap shrink-0 ${activeTab === 'cargarOracion' ? 'bg-brandBlue text-white shadow' : 'text-gray-700 hover:bg-gray-200'}`}
+                                >
+                                    ➕ Cargar Oración
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('verOraciones')}
+                                    className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap shrink-0 ${activeTab === 'verOraciones' ? 'bg-brandBlue text-white shadow' : 'text-gray-700 hover:bg-gray-200'}`}
+                                >
+                                    📖 Ver Oraciones
+                                </button>
+                                {currentUser.rol === 'pastor' && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveTab('colaboradores')}
+                                            className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap shrink-0 ${activeTab === 'colaboradores' ? 'bg-brandBlue text-white shadow' : 'text-gray-700 hover:bg-gray-200'}`}
+                                        >
+                                            Colaboradores
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveTab('usuarios')}
+                                            className={`px-3 py-1.5 rounded-lg transition relative whitespace-nowrap shrink-0 ${activeTab === 'usuarios' ? 'bg-brandBlue text-white shadow' : 'text-gray-700 hover:bg-gray-200'}`}
+                                        >
+                                            Usuarios Admin
+                                            {solicitudesClave.filter(s => !s.atendida).length > 0 && (
+                                                <span className="ml-1.5 inline-flex bg-red-600 text-white text-[10px] w-4 h-4 rounded-full items-center justify-center font-bold">
+                                                    {solicitudesClave.filter(s => !s.atendida).length}
+                                                </span>
+                                            )}
+                                        </button>
+                                    </>
+                                )}
+                            </nav>
+                        </div>
+                    </header>
+
+                    {/* Botón Flotante Siempre Visible */}
+                    <button 
+                        onClick={() => setShowNewPersonModal(true)}
+                        className="fixed bottom-6 right-6 bg-brandRed text-white font-bold px-5 py-3 rounded-full shadow-2xl hover:bg-red-700 transition flex items-center gap-2 z-40"
+                    >
+                        <span className="text-xl leading-none">+</span> Nueva Ficha
+                    </button>
+
+                    <main className="max-w-7xl mx-auto px-4 py-6 flex-1 w-full space-y-6">
+                        {activeTab === 'dashboard' && (
+                            <div className="space-y-6">
+                                <div className="bg-gradient-to-r from-brandBlue to-blue-900 rounded-2xl p-6 text-white shadow-md flex justify-between items-center">
+                                    <div>
+                                        <h2 className="text-2xl font-bold mb-1">Bienvenido, {currentUser.nombre}</h2>
+                                        <p className="text-blue-100 text-xs">Registro y seguimiento consciente de las almas.</p>
+                                    </div>
+                                    <img src="Logo La Casa del Alfarero.png" alt="Logo" className="h-16 brightness-200 opacity-30 hidden sm:block" onError={(e)=>{e.target.style.display='none';}} />
+                                </div>
+
+                                {/* Frase Fija */}
+                                <div className="bg-blue-50 border-l-4 border-brandBlue p-4 rounded-xl shadow-sm text-sm text-blue-900 font-medium">
+                                    💡 Recuerda orar por tus seguimientos, todo lo que hagas por ellos, dará fruto a través de tu oración.
+                                </div>
+
+                                {/* Tarjetas Resumen Clicables */}
+                                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                                    <div 
+                                        onClick={() => { setFilterGrado('todos'); setFilterCanal('todos'); setActiveTab('personas'); }}
+                                        className="bg-white p-5 rounded-xl shadow-sm border hover:border-brandRed cursor-pointer transition transform hover:-translate-y-1"
+                                    >
+                                        <p className="text-xs text-gray-500 font-semibold uppercase">Total Activos</p>
+                                        <p className="text-3xl font-extrabold text-brandRed mt-1">{personasActivas.length}</p>
+                                        <span className="text-[11px] text-blue-600 font-semibold mt-2 inline-block">Ver listado ➔</span>
+                                    </div>
+                                    <div 
+                                        onClick={() => { setFilterGrado('3'); setFilterCanal('todos'); setActiveTab('personas'); }}
+                                        className="bg-white p-5 rounded-xl shadow-sm border hover:border-brandBlue cursor-pointer transition transform hover:-translate-y-1"
+                                    >
+                                        <p className="text-xs text-gray-500 font-semibold uppercase">Interesados</p>
+                                        <p className="text-3xl font-extrabold text-brandBlue mt-1">{personasActivas.filter(p => p.grado === 3).length}</p>
+                                        <span className="text-[11px] text-blue-600 font-semibold mt-2 inline-block">Filtrar nivel ➔</span>
+                                    </div>
+                                    <div 
+                                        onClick={() => { setFilterGrado('5'); setFilterCanal('todos'); setActiveTab('personas'); }}
+                                        className="bg-white p-5 rounded-xl shadow-sm border hover:border-emerald-600 cursor-pointer transition transform hover:-translate-y-1"
+                                    >
+                                        <p className="text-xs text-gray-500 font-semibold uppercase">Invitados</p>
+                                        <p className="text-3xl font-extrabold text-emerald-600 mt-1">{personasActivas.filter(p => p.grado === 5).length}</p>
+                                        <span className="text-[11px] text-blue-600 font-semibold mt-2 inline-block">Filtrar nivel ➔</span>
+                                    </div>
+                                    <div 
+                                        onClick={() => { setActiveTab('archivados'); }}
+                                        className="bg-white p-5 rounded-xl shadow-sm border hover:border-gray-600 cursor-pointer transition transform hover:-translate-y-1"
+                                    >
+                                        <p className="text-xs text-gray-500 font-semibold uppercase">Archivados</p>
+                                        <p className="text-3xl font-extrabold text-gray-700 mt-1">{personasArchivadas.length}</p>
+                                        <span className="text-[11px] text-blue-600 font-semibold mt-2 inline-block">Ver archivo ➔</span>
+                                    </div>
+                                </div>
+
+                                {/* Accesos Directos Interactivos por Canal de Invitación */}
+                                <div className="bg-white p-6 rounded-xl shadow-sm border space-y-4">
+                                    <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Filtro rápido por Canales de Invitación</h3>
+                                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                                        {Object.keys(canalesDesc).map(canalName => {
+                                            const count = personasActivas.filter(p => p.canal === canalName).length;
+                                            return (
+                                                <button
+                                                    key={canalName}
+                                                    onClick={() => { setFilterCanal(canalName); setFilterGrado('todos'); setActiveTab('personas'); }}
+                                                    className="p-3 bg-gray-50 border rounded-xl hover:bg-blue-50 hover:border-brandBlue transition text-left flex flex-col justify-between"
+                                                >
+                                                    <span className="text-xs font-bold text-gray-800">{canalName}</span>
+                                                    <span className="text-lg font-extrabold text-brandBlue mt-2">{count}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'personas' && (
+                            <div className="space-y-6">
+                                {/* Versículo de Ánimo */}
+                                <div className="bg-emerald-50 border border-emerald-200 p-5 rounded-2xl shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                    <div className="space-y-1">
+                                        <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">🌟 Versículo de Ánimo para Compartir Hoy</span>
+                                        <p className="text-sm font-serif italic text-emerald-950">"{versiculoHoy.texto}" ({versiculoHoy.cita})</p>
+                                    </div>
+                                    <a 
+                                        href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`Hola! Quería compartir este hermoso versículo de aliento contigo hoy: "${versiculoHoy.texto}" (${versiculoHoy.cita}) - Iglesia La Casa del Alfarero`)}`} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow transition flex items-center gap-2 whitespace-nowrap"
+                                    >
+                                        💬 Compartir por WhatsApp
+                                    </a>
+                                </div>
+
+                                <div className="flex flex-col sm:flex-row gap-3 bg-white p-4 rounded-xl shadow-sm border">
+                                    <input 
+                                        type="text" 
+                                        placeholder="Buscar por nombre, dirección o perfil..." 
+                                        value={searchTerm} 
+                                        onChange={(e) => setSearchTerm(e.target.value)} 
+                                        className="px-4 py-2 border rounded-lg text-sm w-full" 
+                                    />
+                                    <select 
+                                        value={filterGrado} 
+                                        onChange={(e) => setFilterGrado(e.target.value)}
+                                        className="px-3 py-2 border rounded-lg text-sm bg-white font-medium text-gray-700"
+                                    >
+                                        <option value="todos">Todos los Niveles</option>
+                                        {Object.entries(gradosMap).map(([num, name]) => (
+                                            <option key={num} value={num}>{name}</option>
+                                        ))}
+                                    </select>
+                                    <select 
+                                        value={filterCanal} 
+                                        onChange={(e) => setFilterCanal(e.target.value)}
+                                        className="px-3 py-2 border rounded-lg text-sm bg-white font-medium text-gray-700"
+                                    >
+                                        <option value="todos">Todos los Canales</option>
+                                        {Object.keys(canalesDesc).map(cName => (
+                                            <option key={cName} value={cName}>{cName}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {filteredPersonas.map(persona => {
+                                        const nivelNombre = persona.gradoTexto || gradosMap[persona.grado];
+                                        return (
+                                            <div key={persona.id || persona.idDoc} className="bg-white rounded-xl shadow-sm border flex flex-col justify-between overflow-hidden">
+                                                <div className="p-5 border-b">
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-1.5">
+                                                            {persona.nombre}
+                                                            {currentUser.rol === 'pastor' && persona.notasPrivadasPastor && (
+                                                                <span title="Tiene notas privadas pastorales" className="text-xs bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded-full">🔒</span>
+                                                            )}
+                                                        </h3>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="bg-blue-50 text-brandBlue text-xs font-bold px-2.5 py-1 rounded-full border">{nivelNombre}</span>
+                                                            <button 
+                                                                onClick={() => setInfoModal({ title: `Nivel: ${nivelNombre}`, text: gradosDesc[persona.grado] || "Sin descripción." })}
+                                                                className="text-xs text-brandBlue hover:bg-blue-50 w-5 h-5 rounded-full flex items-center justify-center font-bold border border-blue-200 transition"
+                                                            >
+                                                                ℹ️
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+                                                        <span>Canal: <strong className="text-gray-700">{persona.canal}</strong></span>
+                                                        <button 
+                                                            onClick={() => setInfoModal({ title: `Canal: ${persona.canal}`, text: canalesDesc[persona.canal] || "Sin descripción." })}
+                                                            className="text-xs text-brandBlue hover:bg-blue-50 w-4 h-4 rounded-full flex items-center justify-center font-bold transition"
+                                                        >
+                                                            ℹ️
+                                                        </button>
+                                                    </div>
+                                                    {persona.telefono && <p className="text-xs text-gray-600 mb-1">📱 Tel: {persona.telefono}</p>}
+                                                    {persona.direccion && (
+                                                        <p className="text-xs text-gray-600 mb-1 flex items-center gap-1 truncate">
+                                                            📍 <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(persona.direccion)}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium">{persona.direccion}</a>
+                                                        </p>
+                                                    )}
+                                                    <p className="text-xs font-medium text-brandRed mb-3">Seguimiento a cargo de: {persona.colaborador || 'Sin asignar'}</p>
+                                                    <p className="text-sm text-gray-600 line-clamp-3">{persona.perfil}</p>
+                                                </div>
+                                                <div className="px-5 py-3 bg-gray-50 flex justify-between items-center">
+                                                    <span className="text-xs text-gray-500">{persona.historial ? persona.historial.length : 0} interacciones</span>
+                                                    <button onClick={() => { setSelectedPerson(persona); setIsEditingPerson(false); }} className="text-xs bg-brandRed text-white font-semibold px-3 py-1.5 rounded-lg">Ver Ficha</button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'archivados' && (
+                            <div className="space-y-6">
+                                <div className="bg-white p-6 rounded-xl shadow-sm border space-y-4">
+                                    <h2 className="text-xl font-bold text-gray-900">Fichas Archivadas / Inactivas</h2>
+                                    <p className="text-xs text-gray-500">Personas que ya no reciben seguimiento activo y el motivo de su archivo.</p>
+
+                                    {personasArchivadas.length === 0 ? (
+                                        <p className="text-xs text-gray-500 italic py-6 text-center">No hay fichas archivadas actualmente.</p>
+                                    ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {personasArchivadas.map(p => (
+                                                <div key={p.id || p.idDoc} className="border rounded-xl p-4 bg-gray-50 space-y-2">
+                                                    <div className="flex justify-between items-start">
+                                                        <h3 className="font-bold text-gray-900 text-base">{p.nombre}</h3>
+                                                        <span className="bg-gray-200 text-gray-800 text-[11px] font-bold px-2 py-0.5 rounded">
+                                                            Motivo: {p.motivoArchivo}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs text-gray-600"><strong>Observaciones:</strong> {p.observacionesArchivo}</p>
+                                                    <p className="text-xs text-gray-500">Último nivel: {p.gradoTexto} | Canal: {p.canal}</p>
+                                                    <div className="flex justify-end pt-2">
+                                                        <button 
+                                                            onClick={() => handleRestorePerson(p.idDoc)} 
+                                                            className="text-xs bg-emerald-600 text-white font-bold px-3 py-1.5 rounded hover:bg-emerald-700 transition"
+                                                        >
+                                                            ♻️ Restaurar Ficha
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* PESTAÑA 1: CARGAR ORACIÓN PRIVADA */}
+                        {activeTab === 'cargarOracion' && (
+                            <div className="max-w-3xl mx-auto space-y-6 bg-white p-8 rounded-2xl shadow-sm border">
+                                <div className="flex items-center gap-3 border-b pb-4">
+                                    <span className="text-2xl">🙏</span>
+                                    <div>
+                                        <h2 className="text-xl font-bold text-gray-900">Cargar Temas de Oración</h2>
+                                        <p className="text-xs text-gray-500">Registra tus peticiones privadas organizadas por categoría y motivos con sus detalles.</p>
+                                    </div>
+                                </div>
+
+                                <form onSubmit={handleSaveOracionPersonal} className="space-y-6">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1">Categoría</label>
+                                            <select 
+                                                value={categoriaOracion} 
+                                                onChange={e => setCategoriaOracion(e.target.value)}
+                                                className="w-full p-3 border rounded-xl text-sm bg-gray-50 font-semibold text-gray-900"
+                                            >
+                                                {categoriasDisponibles.map(cat => (
+                                                    <option key={cat} value={cat}>{cat}</option>
+                                                ))}
+                                                <option value="NUEVA">➕ Agregar nueva categoría...</option>
+                                            </select>
+                                        </div>
+
+                                        {categoriaOracion === 'NUEVA' && (
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-700 mb-1">Nombre de la nueva categoría</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Ej: Ministerio, Finanzas..." 
+                                                    value={nuevaCategoriaInput} 
+                                                    onChange={e => setNuevaCategoriaInput(e.target.value)}
+                                                    className="w-full p-3 border rounded-xl text-sm bg-white"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* BLOQUE DE MOTIVOS DINÁMICOS */}
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-center">
+                                            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide">Motivos y Detalles Opcionales</label>
+                                            <button 
+                                                type="button" 
+                                                onClick={handleAddItemOracion}
+                                                className="bg-brandBlue text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-blue-900 transition flex items-center gap-1 shadow-sm"
+                                            >
+                                                <span>+</span> Agregar otro motivo
+                                            </button>
+                                        </div>
+
+                                        {itemsOracion.map((item, index) => (
+                                            <div key={index} className="p-4 bg-gray-50 rounded-xl border relative space-y-3 shadow-sm">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-xs font-bold text-brandBlue">Motivo #{index + 1}</span>
+                                                    {itemsOracion.length > 1 && (
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => handleRemoveItemOracion(index)}
+                                                            className="text-xs text-red-600 hover:bg-red-50 p-1 rounded font-bold"
+                                                        >
+                                                            ✕ Quitar
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="block text-[11px] font-bold text-gray-600 mb-1">Motivo Principal *</label>
+                                                        <input 
+                                                            type="text" 
+                                                            required
+                                                            placeholder="Ej: Esposa, Trabajo, Hijo..." 
+                                                            value={item.motivo} 
+                                                            onChange={e => handleItemOracionChange(index, 'motivo', e.target.value)}
+                                                            className="w-full p-2.5 border rounded-lg text-sm bg-white"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[11px] font-bold text-gray-600 mb-1">Detalle (Opcional)</label>
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="Ej: Su salud, sus estudios, etc." 
+                                                            value={item.detalle} 
+                                                            onChange={e => handleItemOracionChange(index, 'detalle', e.target.value)}
+                                                            className="w-full p-2.5 border rounded-lg text-sm bg-white"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="flex justify-end gap-3 pt-4 border-t">
+                                        <button type="button" onClick={() => setActiveTab('verOraciones')} className="px-5 py-2.5 border rounded-xl text-xs font-semibold">Ver mis oraciones</button>
+                                        <button type="submit" className="px-6 py-2.5 bg-brandRed text-white rounded-xl text-xs font-bold hover:bg-red-700 shadow transition">Guardar Temas de Oración</button>
+                                    </div>
+                                </form>
+                            </div>
+                        )}
+
+                        {/* PESTAÑA 2: VER ORACIONES CON VISTA AMIGABLE */}
+                        {activeTab === 'verOraciones' && (
+                            <div className="space-y-6">
+                                <div className="bg-white p-6 rounded-2xl shadow-sm border space-y-6">
+                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-4">
+                                        <div>
+                                            <h2 className="text-xl font-bold text-gray-900">📖 Mis Temas de Oración Personales</h2>
+                                            <p className="text-xs text-gray-500">Organizados de forma clara y visual. Solo tú tienes acceso a esta información.</p>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <select 
+                                                value={filtroCategoriaOracion} 
+                                                onChange={e => setFiltroCategoriaOracion(e.target.value)}
+                                                className="p-2.5 border rounded-xl text-xs bg-gray-50 font-bold text-gray-700"
+                                            >
+                                                <option value="todas">Filtrar por categoría (Todas)</option>
+                                                {categoriasDisponibles.map(cat => (
+                                                    <option key={cat} value={cat}>{cat}</option>
+                                                ))}
+                                            </select>
+                                            <button 
+                                                onClick={() => setActiveTab('cargarOracion')}
+                                                className="bg-brandRed text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-red-700 shadow transition whitespace-nowrap"
+                                            >
+                                                ➕ Cargar Nueva Oración
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* GRID VISUAL Y AMIGABLE DE ORACIONES PERSONALES */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {misOraciones.filter(o => filtroCategoriaOracion === 'todas' || o.categoria === filtroCategoriaOracion).length === 0 ? (
+                                            <div className="col-span-full py-12 text-center text-gray-400 text-xs italic bg-gray-50 rounded-xl border border-dashed">
+                                                No tienes temas de oración personales registrados todavía. Haz clic en "Cargar Nueva Oración" para empezar.
+                                            </div>
+                                        ) : (
+                                            misOraciones
+                                                .filter(o => filtroCategoriaOracion === 'todas' || o.categoria === filtroCategoriaOracion)
+                                                .map(oracion => (
+                                                    <div key={oracion.idDoc || oracion.id} className="border border-gray-200 bg-white rounded-2xl p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between space-y-4">
+                                                        <div className="space-y-3">
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="bg-blue-50 text-brandBlue text-[11px] font-extrabold px-3 py-1 rounded-full border border-blue-200 uppercase tracking-wide">
+                                                                    {oracion.categoria || 'General'}
+                                                                </span>
+                                                                <span className="text-[11px] text-gray-400 font-medium">{oracion.fecha || ''}</span>
+                                                            </div>
+
+                                                            <div className="space-y-2.5 pt-1">
+                                                                {Array.isArray(oracion.items) ? (
+                                                                    oracion.items.map((item, idx) => (
+                                                                        <div key={idx} className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                                                                            <p className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                                                                                <span className="w-1.5 h-1.5 rounded-full bg-brandRed"></span>
+                                                                                {item.motivo || 'Motivo'}
+                                                                            </p>
+                                                                            {item.detalle && (
+                                                                                <p className="text-xs text-gray-600 mt-1 pl-3 border-l-2 border-gray-300 italic">
+                                                                                    {item.detalle}
+                                                                                </p>
+                                                                            )}
+                                                                        </div>
+                                                                    ))
+                                                                ) : (
+                                                                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                                                                        <p className="text-xs text-gray-900">{oracion.detalle || 'Sin detalle'}</p>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex justify-end pt-3 border-t">
+                                                            <button 
+                                                                onClick={() => handleDeleteOracionPersonal(oracion.idDoc)}
+                                                                className="text-xs text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1"
+                                                            >
+                                                                🗑️ Eliminar registro
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* SECCIÓN COMPARTIDA: PETICIONES DE ORACIÓN DE LOS SEGUIMIENTOS */}
+                                <div className="bg-white p-6 rounded-2xl shadow-sm border space-y-4">
+                                    <h3 className="text-lg font-bold text-gray-900">👥 Peticiones de Oración de los Seguimientos Activos</h3>
+                                    <p className="text-xs text-gray-500">Temas de oración recopilados automáticamente de las fichas de las personas para intercesión general.</p>
+
+                                    <div className="space-y-3">
+                                        {personasActivas.filter(p => p.temasOracion).length === 0 ? (
+                                            <p className="text-xs text-gray-400 italic py-4 text-center">No hay peticiones de oración registradas en las fichas de seguimiento.</p>
+                                        ) : (
+                                            personasActivas.filter(p => p.temasOracion).map(p => (
+                                                <div key={p.id || p.idDoc} className="p-3.5 bg-gray-50 border rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs">
+                                                    <div>
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="font-bold text-brandBlue">{p.nombre}</span>
+                                                            <span className="text-gray-400">• Nivel: {p.gradoTexto}</span>
+                                                            <span className="text-gray-400">• Encargado: {p.colaborador}</span>
+                                                        </div>
+                                                        <p className="text-gray-800 font-medium">🕊️ "{p.temasOracion}"</p>
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => { setSelectedPerson(p); setIsEditingPerson(false); }}
+                                                        className="bg-brandBlue text-white font-bold px-3 py-1.5 rounded-lg hover:bg-blue-900 transition whitespace-nowrap"
+                                                    >
+                                                        Ver Ficha
+                                                    </button>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'colaboradores' && currentUser.rol === 'pastor' && (
+                            <div className="space-y-6">
+                                <div className="bg-white p-6 rounded-xl shadow-sm border">
+                                    <h2 className="text-xl font-bold text-gray-900 mb-2">Desempeño y Seguimiento de Colaboradores y Pastores</h2>
+                                    <p className="text-xs text-gray-500 mb-6">Listado de hermanos y almas activas asignadas.</p>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {usuariosUnicos.map(colab => {
+                                            const almasColab = personasActivas.filter(p => p.colaborador === colab.nombre);
+                                            return (
+                                                <div key={colab.id || colab.idDoc || colab.usuario} className="border rounded-xl p-5 bg-gray-50 space-y-3">
+                                                    <div className="flex justify-between items-start border-b pb-2">
+                                                        <div>
+                                                            <h3 className="font-bold text-gray-900 text-base">{colab.nombre}</h3>
+                                                            <p className="text-xs text-gray-500">Usuario: {colab.usuario} • Rol: <span className="uppercase font-semibold">{colab.rol}</span></p>
+                                                        </div>
+                                                        <span className="bg-brandRed text-white font-bold text-xs px-2.5 py-1 rounded-full shadow">
+                                                            {almasColab.length} almas activas
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="space-y-2">
+                                                        <h4 className="text-xs font-bold text-gray-700 uppercase">Fichas Asignadas:</h4>
+                                                        {almasColab.length === 0 ? (
+                                                            <p className="text-xs text-gray-500 italic">No tiene fichas asignadas actualmente.</p>
+                                                        ) : (
+                                                            <div className="space-y-1">
+                                                                {almasColab.map(p => {
+                                                                    const nivelNombre = p.gradoTexto || gradosMap[p.grado];
+                                                                    return (
+                                                                        <div key={p.id || p.idDoc} className="bg-white p-2.5 rounded border flex justify-between items-center text-xs">
+                                                                            <div className="flex items-center gap-1.5">
+                                                                                <span className="font-bold text-gray-800">{p.nombre}</span>
+                                                                                <span className="text-gray-500">({nivelNombre})</span>
+                                                                                {p.notasPrivadasPastor && <span title="Contiene notas privadas del pastor">🔒</span>}
+                                                                            </div>
+                                                                            <button onClick={() => { setSelectedPerson(p); setIsEditingPerson(false); }} className="text-brandBlue font-semibold hover:underline">Ver Ficha</button>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'usuarios' && currentUser.rol === 'pastor' && (
+                            <div className="space-y-6">
+                                <div className="bg-amber-50 p-6 rounded-xl shadow-sm border border-amber-200 space-y-3">
+                                    <h2 className="text-lg font-bold text-amber-900 flex items-center gap-2">
+                                        🔔 Solicitudes de Restablecimiento de Clave
+                                        {solicitudesClave.filter(s => !s.atendida).length > 0 && (
+                                            <span className="bg-red-600 text-white text-xs px-2 py-0.5 rounded-full">
+                                                {solicitudesClave.filter(s => !s.atendida).length} pendiente(s)
+                                            </span>
+                                        )}
+                                    </h2>
+                                    {solicitudesClave.filter(s => !s.atendida).length === 0 ? (
+                                        <p className="text-xs text-amber-800">No hay solicitudes pendientes de cambio de clave.</p>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {solicitudesClave.filter(s => !s.atendida).map(s => {
+                                                return (
+                                                    <div key={s.id || s.idDoc} className="bg-white p-3 rounded border border-amber-300 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs">
+                                                        <div>
+                                                            <p className="font-bold text-gray-900">{s.nombre} (<span className="text-brandBlue">{s.usuario}</span>)</p>
+                                                            <p className="text-gray-500 text-[11px]">Solicitado el: {s.fecha}</p>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                                                            <input 
+                                                                type="text" 
+                                                                placeholder="Nueva clave temporal" 
+                                                                id={`temp_clave_${s.id || s.idDoc}`}
+                                                                className="p-1 border rounded text-xs w-36"
+                                                            />
+                                                            <button 
+                                                                onClick={() => {
+                                                                    const val = document.getElementById(`temp_clave_${s.id || s.idDoc}`).value;
+                                                                    handleResolveResetRequest(s.idDoc, s.usuario, val);
+                                                                }} 
+                                                                className="bg-emerald-600 text-white px-3 py-1.5 rounded font-bold hover:bg-emerald-700"
+                                                            >
+                                                                Asignar Clave
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="bg-white p-6 rounded-xl shadow-sm border space-y-4">
+                                    <h2 className="text-xl font-bold text-gray-900">Crear Nuevo Usuario / Hermano</h2>
+                                    <form onSubmit={handleCreateUser} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1">Nombre Completo</label>
+                                            <input type="text" required value={newUserData.nombre} onChange={e=>setNewUserData({...newUserData, nombre: e.target.value})} className="w-full p-2 border rounded text-sm" placeholder="Ej: Hermana Marta" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1">Nombre de Usuario (Login)</label>
+                                            <input type="text" required value={newUserData.usuario} onChange={e=>setNewUserData({...newUserData, usuario: e.target.value})} className="w-full p-2 border rounded text-sm" placeholder="Ej: marta" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1">Contraseña Inicial</label>
+                                            <input type="password" required value={newUserData.clave} onChange={e=>setNewUserData({...newUserData, clave: e.target.value})} className="w-full p-2 border rounded text-sm" placeholder="••••••••" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1">Rol</label>
+                                            <select value={newUserData.rol} onChange={e=>setNewUserData({...newUserData, rol: e.target.value})} className="w-full p-2 border rounded text-sm">
+                                                <option value="colaborador">Hermano Colaborador</option>
+                                                <option value="pastor">Pastor / Administrador</option>
+                                            </select>
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <button type="submit" className="bg-brandBlue text-white font-bold px-4 py-2 rounded text-sm hover:bg-blue-900 transition">
+                                                + Registrar Usuario en la Nube
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+
+                                <div className="bg-white p-6 rounded-xl shadow-sm border">
+                                    <h3 className="text-lg font-bold text-gray-900 mb-4">Usuarios Habilitados</h3>
+                                    <div className="divide-y">
+                                        {usuariosUnicos.map(u => (
+                                            <div key={u.id || u.idDoc || u.usuario} className="py-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-sm">
+                                                <div>
+                                                    <p className="font-bold text-gray-800">{u.nombre}</p>
+                                                    <p className="text-xs text-gray-500">Usuario: <span className="font-semibold text-gray-700">{u.usuario}</span> • Clave: <span className="font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-600">••••••••</span></p>
+                                                </div>
+                                                <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+                                                    <span className="bg-gray-100 text-gray-700 text-xs px-2.5 py-1 rounded-full font-bold uppercase">{u.rol}</span>
+                                                    {editingPasswordUserId === u.id ? (
+                                                        <div className="flex items-center gap-1">
+                                                            <input 
+                                                                type="text" 
+                                                                placeholder="Nueva clave" 
+                                                                value={newPasswordValue} 
+                                                                onChange={e => setNewPasswordValue(e.target.value)}
+                                                                className="p-1 border rounded text-xs w-28"
+                                                            />
+                                                            <button onClick={() => handleChangePasswordAdmin(u.id, u.idDoc)} className="bg-emerald-600 text-white px-2 py-1 rounded text-xs font-bold">Guardar</button>
+                                                            <button onClick={() => setEditingPasswordUserId(null)} className="bg-gray-300 text-gray-700 px-2 py-1 rounded text-xs">✕</button>
+                                                        </div>
+                                                    ) : (
+                                                        <button onClick={() => { setEditingPasswordUserId(u.id); setNewPasswordValue(''); }} className="text-xs bg-blue-50 text-brandBlue font-semibold px-2.5 py-1 rounded border border-blue-200">
+                                                            Restablecer Clave
+                                                        </button>
+                                                    )}
+                                                    <button onClick={() => handleDeleteUser(u.id, u.idDoc, u.rol)} className="text-xs bg-red-50 text-red-700 font-semibold px-2.5 py-1 rounded border border-red-200 hover:bg-red-100">
+                                                        Eliminar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+
+                    {/* MODAL CREAR NUEVA FICHA */}
+                    {showNewPersonModal && (
+                        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                            <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+                                <div className="flex justify-between items-center border-b pb-3">
+                                    <h3 className="text-lg font-bold text-gray-900">Crear Nueva Ficha de Persona</h3>
+                                    <button onClick={() => setShowNewPersonModal(false)} className="text-gray-400 font-bold">✕</button>
+                                </div>
+                                <form onSubmit={handleCreatePerson} className="space-y-3">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-700 mb-1">Nombre Completo *</label>
+                                        <input type="text" required value={newPersonData.nombre} onChange={e=>setNewPersonData({...newPersonData, nombre: e.target.value})} className="w-full p-2 border rounded text-sm" placeholder="Ej: María González" />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1">Género</label>
+                                            <select value={newPersonData.genero} onChange={e=>setNewPersonData({...newPersonData, genero: e.target.value})} className="w-full p-2 border rounded text-sm">
+                                                <option value="femenino">Femenino (Anímala)</option>
+                                                <option value="masculino">Masculino (Anímalo)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1">Nivel Inicial</label>
+                                            <select value={newPersonData.grado} onChange={e=>setNewPersonData({...newPersonData, grado: e.target.value})} className="w-full p-2 border rounded text-sm">
+                                                {Object.entries(gradosMap).map(([num, name]) => (
+                                                    <option key={num} value={num}>{name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center justify-between">
+                                                <span>Canal de Origen</span>
+                                                <span 
+                                                    onClick={() => setInfoModal({ title: "Canales de Invitación", text: "Selecciona el canal por el cual llegó la persona." })} 
+                                                    className="text-brandBlue cursor-pointer text-[11px]"
+                                                >
+                                                    ℹ️ Info
+                                                </span>
+                                            </label>
+                                            <select value={newPersonData.canal} onChange={e=>setNewPersonData({...newPersonData, canal: e.target.value})} className="w-full p-2 border rounded text-sm">
+                                                {Object.keys(canalesDesc).map(cName => (
+                                                    <option key={cName} value={cName}>{cName}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1">Colaborador / Pastor a Cargo</label>
+                                            <select 
+                                                value={newPersonData.colaborador} 
+                                                onChange={e => setNewPersonData({...newPersonData, colaborador: e.target.value})}
+                                                className="w-full p-2 border rounded text-sm bg-white"
+                                            >
+                                                <option value="">Por defecto (Tú mismo: {currentUser.nombre})</option>
+                                                {colaboradoresUnicos.map(nombreColab => (
+                                                    <option key={nombreColab} value={nombreColab}>{nombreColab}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1">Teléfono / WhatsApp</label>
+                                            <input type="text" value={newPersonData.telefono} onChange={e=>setNewPersonData({...newPersonData, telefono: e.target.value})} className="w-full p-2 border rounded text-sm" placeholder="Ej: 54911xxxxxxxx" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1">Dirección (Ubicación)</label>
+                                            <input type="text" value={newPersonData.direccion} onChange={e=>setNewPersonData({...newPersonData, direccion: e.target.value})} className="w-full p-2 border rounded text-sm" placeholder="Ej: Av. San Martín 1234" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-700 mb-1">Perfil / Notas de Contexto</label>
+                                        <textarea rows="2" value={newPersonData.perfil} onChange={e=>setNewPersonData({...newPersonData, perfil: e.target.value})} className="w-full p-2 border rounded text-sm" placeholder="Detalles..."></textarea>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-amber-900 mb-1">🙏 Temas de Oración</label>
+                                        <input type="text" value={newPersonData.temasOracion} onChange={e=>setNewPersonData({...newPersonData, temasOracion: e.target.value})} className="w-full p-2 border rounded text-sm border-amber-300 bg-amber-50" placeholder="Peticiones de oración..." />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-700 mb-1">Nota del Colaborador</label>
+                                        <input type="text" value={newPersonData.notasColaborador} onChange={e=>setNewPersonData({...newPersonData, notasColaborador: e.target.value})} className="w-full p-2 border rounded text-sm" placeholder="Notas iniciales..." />
+                                    </div>
+                                    {currentUser.rol === 'pastor' && (
+                                        <>
+                                            <div>
+                                                <label className="block text-xs font-bold text-brandRed mb-1">Nota para el Colaborador / Observaciones</label>
+                                                <input type="text" value={newPersonData.notasPastor} onChange={e=>setNewPersonData({...newPersonData, notasPastor: e.target.value})} className="w-full p-2 border rounded text-sm" placeholder="Instrucción..." />
+                                            </div>
+                                            <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
+                                                <label className="block text-xs font-bold text-purple-900 mb-1">🔒 Comentarios Privados del Pastor (Solo visible en sesión Pastoral)</label>
+                                                <textarea 
+                                                    rows="2" 
+                                                    value={newPersonData.notasPrivadasPastor} 
+                                                    onChange={e=>setNewPersonData({...newPersonData, notasPrivadasPastor: e.target.value})} 
+                                                    className="w-full p-2 border border-purple-300 rounded text-sm bg-white" 
+                                                    placeholder="Temas confidenciales tratados en privado..."
+                                                ></textarea>
+                                            </div>
+                                        </>
+                                    )}
+                                    <div className="flex justify-end gap-2 pt-3 border-t">
+                                        <button type="button" onClick={() => setShowNewPersonModal(false)} className="px-4 py-2 border rounded text-xs font-semibold">Cancelar</button>
+                                        <button type="submit" className="px-4 py-2 bg-brandRed text-white rounded text-xs font-bold hover:bg-red-700">Guardar Ficha</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* MODAL FICHA DETALLADA Y EDITABLE */}
+                    {selectedPerson && (
+                        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                            <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+                                <div className="flex justify-between items-start border-b pb-3">
+                                    <div>
+                                        <h2 className="text-xl font-bold">{selectedPerson.nombre}</h2>
+                                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                            <span className="text-xs text-brandBlue font-semibold flex items-center gap-1">
+                                                {selectedPerson.gradoTexto || gradosMap[selectedPerson.grado]}
+                                                <button 
+                                                    onClick={() => setInfoModal({ title: `Nivel: ${selectedPerson.gradoTexto || gradosMap[selectedPerson.grado]}`, text: gradosDesc[selectedPerson.grado] || "Sin descripción." })}
+                                                    className="text-[10px] text-brandBlue hover:bg-blue-50 w-4 h-4 rounded-full flex items-center justify-center font-bold border border-blue-200"
+                                                >
+                                                    ℹ️
+                                                </button>
+                                            </span>
+                                            <span className="text-xs text-gray-400">•</span>
+                                            <span className="text-xs text-gray-600 font-semibold flex items-center gap-1">
+                                                Canal: {selectedPerson.canal}
+                                                <button 
+                                                    onClick={() => setInfoModal({ title: `Canal: ${selectedPerson.canal}`, text: canalesDesc[selectedPerson.canal] || "Sin descripción." })}
+                                                    className="text-[10px] text-brandBlue hover:bg-blue-50 w-4 h-4 rounded-full flex items-center justify-center font-bold border border-blue-200"
+                                                >
+                                                    ℹ️
+                                                </button>
+                                            </span>
+                                        </div>
+                                        <p className="text-xs font-semibold text-brandRed mt-1">Seguimiento a cargo de: {selectedPerson.colaborador || 'Sin asignar'}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {(currentUser.rol === 'pastor' || currentUser.nombre === selectedPerson.colaborador) && (
+                                            <button onClick={() => setIsEditingPerson(!isEditingPerson)} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold px-3 py-1.5 rounded border">
+                                                {isEditingPerson ? 'Cancelar Edición' : '✏️ Editar Ficha'}
+                                            </button>
+                                        )}
+                                        <button onClick={() => { setSelectedPerson(null); setIsEditingPerson(false); }} className="font-bold text-lg px-2">✕</button>
+                                    </div>
+                                </div>
+
+                                {!isEditingPerson ? (
+                                    <div className="space-y-4 text-sm">
+                                        <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200 flex flex-col sm:flex-row justify-between items-center gap-3">
+                                            <div>
+                                                <span className="font-bold text-emerald-900 text-xs uppercase block">Contacto Rápido</span>
+                                                <p className="text-gray-700 text-xs">{selectedPerson.telefono ? `Tel: ${selectedPerson.telefono}` : 'Número de teléfono no cargado'}</p>
+                                            </div>
+                                            <a 
+                                                href={`https://api.whatsapp.com/send?phone=${selectedPerson.telefono || ''}&text=${encodeURIComponent(`Hola ${selectedPerson.nombre}! Te escribo de parte de la iglesia La Casa del Alfarero para saludarte y saber cómo estás.`)}`} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer" 
+                                                className={`bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow transition flex items-center gap-2 ${!selectedPerson.telefono ? 'opacity-75' : ''}`}
+                                            >
+                                                💬 {selectedPerson.genero === 'masculino' ? 'Anímalo ahora con un mensajito' : 'Anímala ahora con un mensajito'}
+                                            </a>
+                                        </div>
+
+                                        {/* APARTADO EXCLUSIVO DEL PASTOR (SOLO VISIBLE EN SESIÓN PASTORAL) */}
+                                        {currentUser.rol === 'pastor' && (
+                                            <div className="bg-purple-50 p-4 rounded-xl border-2 border-purple-300 shadow-sm space-y-1.5">
+                                                <div className="flex justify-between items-center">
+                                                    <h4 className="font-bold text-xs text-purple-900 uppercase flex items-center gap-1.5">
+                                                        🔒 Comentarios Privados del Pastor
+                                                    </h4>
+                                                    <span className="text-[10px] bg-purple-200 text-purple-900 font-bold px-2 py-0.5 rounded-full">
+                                                        Confidencial • Solo Pastor
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-purple-950 whitespace-pre-line leading-relaxed">
+                                                    {selectedPerson.notasPrivadasPastor || 'Sin comentarios privados registrados. Haz clic en "Editar Ficha" para agregar notas confidenciales.'}
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {/* TEMAS DE ORACIÓN */}
+                                        <div className="bg-amber-50 p-3 rounded-xl border border-amber-200">
+                                            <h4 className="font-bold text-xs text-amber-900 uppercase mb-1">🙏 Temas de Oración</h4>
+                                            <p className="text-xs text-gray-800 font-medium">{selectedPerson.temasOracion || 'Sin temas de oración registrados.'}</p>
+                                        </div>
+
+                                        {/* LÍNEA DE TIEMPO / HISTORIAL COMPLETO DE INTERACCIONES */}
+                                        <div className="bg-gray-50 p-4 rounded-xl border space-y-3">
+                                            <h4 className="font-bold text-xs text-gray-700 uppercase">📋 Historial Completo de Conversaciones, Llamadas, Mensajes y Visitas</h4>
+                                            
+                                            {/* Formulario rápido para agregar nueva interacción */}
+                                            <form onSubmit={handleAddHistorialItem} className="bg-white p-3 rounded-lg border space-y-2">
+                                                <p className="text-[11px] font-bold text-brandBlue uppercase">Agregar nueva interacción:</p>
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                                    <select 
+                                                        value={nuevoHistorial.tipo} 
+                                                        onChange={e => setNuevoHistorial({...nuevoHistorial, tipo: e.target.value})}
+                                                        className="p-1.5 border rounded text-xs bg-white font-medium"
+                                                    >
+                                                        <option value="Llamada">📞 Llamada</option>
+                                                        <option value="Mensaje">💬 Mensaje</option>
+                                                        <option value="Visita">🏠 Visita</option>
+                                                        <option value="Conversación directa">🗣️ Conversación directa</option>
+                                                    </select>
+                                                    <input 
+                                                        type="date" 
+                                                        value={nuevoHistorial.fecha} 
+                                                        onChange={e => setNuevoHistorial({...nuevoHistorial, fecha: e.target.value})}
+                                                        className="p-1.5 border rounded text-xs"
+                                                    />
+                                                    <button type="submit" className="bg-brandBlue text-white font-bold px-3 py-1.5 rounded text-xs hover:bg-blue-900 transition">
+                                                        + Registrar
+                                                    </button>
+                                                </div>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Detalle o temas conversados..." 
+                                                    value={nuevoHistorial.detalle} 
+                                                    onChange={e => setNuevoHistorial({...nuevoHistorial, detalle: e.target.value})}
+                                                    className="w-full p-1.5 border rounded text-xs"
+                                                />
+                                            </form>
+
+                                            {/* Listado de interacciones */}
+                                            <div className="space-y-2 max-h-48 overflow-y-auto">
+                                                {(!selectedPerson.historial || selectedPerson.historial.length === 0) ? (
+                                                    <p className="text-xs text-gray-500 italic py-2 text-center">No hay interacciones registradas aún.</p>
+                                                ) : (
+                                                    selectedPerson.historial.map(item => (
+                                                        <div key={item.id} className="bg-white p-2.5 rounded border text-xs flex justify-between items-start">
+                                                            <div>
+                                                                <div className="flex items-center gap-2 font-bold text-gray-800">
+                                                                    <span className="bg-blue-100 text-brandBlue px-2 py-0.5 rounded text-[10px]">{item.tipo}</span>
+                                                                    <span>{item.fecha}</span>
+                                                                    <span className="text-gray-400 font-normal">({item.autor})</span>
+                                                                </div>
+                                                                <p className="text-gray-600 mt-1">{item.detalle}</p>
+                                                            </div>
+                                                            <button onClick={() => handleDeleteHistorialItem(item.id)} className="text-gray-400 hover:text-red-600 font-bold px-1">✕</button>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {selectedPerson.direccion && (
+                                            <div className="bg-blue-50 p-3 rounded border border-blue-200 flex justify-between items-center">
+                                                <div>
+                                                    <span className="font-bold text-brandBlue text-xs uppercase block">Dirección</span>
+                                                    <p className="text-gray-700 text-xs">{selectedPerson.direccion}</p>
+                                                </div>
+                                                <a 
+                                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedPerson.direccion)}`} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer" 
+                                                    className="bg-brandBlue text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-blue-900 transition flex items-center gap-1 shadow"
+                                                >
+                                                    🗺️ Cómo llegar
+                                                </a>
+                                            </div>
+                                        )}
+
+                                        <div>
+                                            <h4 className="font-bold text-gray-700 mb-1">Perfil</h4>
+                                            <p className="text-gray-600 bg-gray-50 p-3 rounded">{selectedPerson.perfil}</p>
+                                        </div>
+
+                                        {/* NOTAS CRUZADAS: COLABORADOR Y PASTOR */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div className="bg-gray-50 p-3 rounded border">
+                                                <h4 className="font-bold text-gray-700 text-xs uppercase mb-1">Nota del Colaborador</h4>
+                                                <p className="text-gray-700 text-xs">{selectedPerson.notasColaborador || 'Sin notas del colaborador.'}</p>
+                                            </div>
+                                            <div className="bg-red-50 p-3 rounded border border-red-200">
+                                                <h4 className="font-bold text-brandRed text-xs uppercase mb-1">Nota para el Colaborador / Observaciones</h4>
+                                                <p className="text-gray-700 text-xs">{selectedPerson.notasPastor || 'Sin notas pastorales.'}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex justify-between items-center pt-3 border-t">
+                                            <button 
+                                                onClick={() => { setPersonToArchive(selectedPerson); setShowArchiveModal(true); }}
+                                                className="text-xs bg-amber-100 text-amber-800 font-bold px-3 py-2 rounded-lg hover:bg-amber-200 transition"
+                                            >
+                                                📁 Dejar de seguir / Archivar
+                                            </button>
+                                            <button 
+                                                onClick={() => handleDeletePerson(selectedPerson.idDoc)}
+                                                className="text-xs bg-red-50 text-red-700 font-bold px-3 py-2 rounded-lg hover:bg-red-100 transition border border-red-200"
+                                            >
+                                                🗑️ Eliminar Ficha
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <form onSubmit={handleSaveEditedPerson} className="space-y-3 text-sm">
+                                        {/* CAMPO EXCLUSIVO DE EDICIÓN DEL PASTOR */}
+                                        {currentUser.rol === 'pastor' && (
+                                            <div className="bg-purple-50 p-3 rounded-xl border-2 border-purple-300 space-y-1">
+                                                <label className="block text-xs font-bold text-purple-900">
+                                                    🔒 Comentarios Privados del Pastor (Solo visible en sesión Pastoral)
+                                                </label>
+                                                <textarea 
+                                                    rows="3" 
+                                                    value={selectedPerson.notasPrivadasPastor || ''} 
+                                                    onChange={e => setSelectedPerson({...selectedPerson, notasPrivadasPastor: e.target.value})}
+                                                    className="w-full p-2 border border-purple-300 rounded text-xs bg-white"
+                                                    placeholder="Escribe aquí los temas confidenciales tratados en privado con esta persona..."
+                                                ></textarea>
+                                            </div>
+                                        )}
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-700 mb-1">Nivel Actual</label>
+                                                <select 
+                                                    value={selectedPerson.grado} 
+                                                    onChange={e => setSelectedPerson({...selectedPerson, grado: parseInt(e.target.value)})}
+                                                    className="w-full p-2 border rounded text-xs"
+                                                >
+                                                    {Object.entries(gradosMap).map(([num, name]) => (
+                                                        <option key={num} value={num}>{name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center justify-between">
+                                                    <span>Canal de Invitación</span>
+                                                    <span 
+                                                        onClick={() => setInfoModal({ title: "Canales de Invitación", text: "Modifica el canal por el cual llegó la persona." })} 
+                                                        className="text-brandBlue cursor-pointer text-[11px]"
+                                                    >
+                                                        ℹ️ Info
+                                                    </span>
+                                                </label>
+                                                <select 
+                                                    value={selectedPerson.canal} 
+                                                    onChange={e => setSelectedPerson({...selectedPerson, canal: e.target.value})}
+                                                    className="w-full p-2 border rounded text-xs bg-white"
+                                                >
+                                                    {Object.keys(canalesDesc).map(cName => (
+                                                        <option key={cName} value={cName}>{cName}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-700 mb-1">Teléfono / WhatsApp</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={selectedPerson.telefono || ''} 
+                                                    onChange={e => setSelectedPerson({...selectedPerson, telefono: e.target.value})}
+                                                    className="w-full p-2 border rounded text-xs"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-700 mb-1">Colaborador / Pastor a Cargo</label>
+                                                <select 
+                                                    value={selectedPerson.colaborador || ''} 
+                                                    onChange={e => setSelectedPerson({...selectedPerson, colaborador: e.target.value})}
+                                                    className="w-full p-2 border rounded text-xs bg-white font-semibold text-brandBlue"
+                                                >
+                                                    <option value="">Seleccionar encargado</option>
+                                                    {colaboradoresUnicos.map(nombreColab => (
+                                                        <option key={nombreColab} value={nombreColab}>{nombreColab}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-bold text-amber-900 mb-1">🙏 Temas de Oración</label>
+                                            <input 
+                                                type="text" 
+                                                value={selectedPerson.temasOracion || ''} 
+                                                onChange={e => setSelectedPerson({...selectedPerson, temasOracion: e.target.value})}
+                                                className="w-full p-2 border rounded text-xs border-amber-300 bg-amber-50"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1">Dirección</label>
+                                            <input 
+                                                type="text" 
+                                                value={selectedPerson.direccion || ''} 
+                                                onChange={e => setSelectedPerson({...selectedPerson, direccion: e.target.value})}
+                                                className="w-full p-2 border rounded text-xs"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1">Perfil / Notas</label>
+                                            <textarea 
+                                                rows="2" 
+                                                value={selectedPerson.perfil} 
+                                                onChange={e => setSelectedPerson({...selectedPerson, perfil: e.target.value})}
+                                                className="w-full p-2 border rounded text-xs"
+                                            ></textarea>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-700 mb-1">Nota del Colaborador</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={selectedPerson.notasColaborador || ''} 
+                                                    onChange={e => setSelectedPerson({...selectedPerson, notasColaborador: e.target.value})}
+                                                    className="w-full p-2 border rounded text-xs"
+                                                />
+                                            </div>
+                                            {currentUser.rol === 'pastor' && (
+                                                <div>
+                                                    <label className="block text-xs font-bold text-brandRed mb-1">Nota para el Colaborador / Observaciones</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={selectedPerson.notasPastor || ''} 
+                                                        onChange={e => setSelectedPerson({...selectedPerson, notasPastor: e.target.value})}
+                                                        className="w-full p-2 border rounded text-xs"
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="flex justify-end gap-2 pt-3 border-t">
+                                            <button type="button" onClick={() => setIsEditingPerson(false)} className="px-3 py-1.5 border rounded text-xs">Cancelar</button>
+                                            <button type="submit" className="px-4 py-1.5 bg-brandRed text-white rounded text-xs font-bold hover:bg-red-700">Guardar Cambios</button>
+                                        </div>
+                                    </form>
+                                )}
+
+                                <div className="flex justify-end pt-2 border-t">
+                                    <button onClick={() => { setSelectedPerson(null); setIsEditingPerson(false); }} className="bg-gray-800 text-white px-4 py-2 rounded text-xs font-semibold">Cerrar Ficha</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* MODAL DE ARCHIVAR CON MOTIVOS */}
+                    {showArchiveModal && (
+                        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+                            <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+                                <h3 className="font-bold text-gray-900 text-base border-b pb-2">📁 Archivar Seguimiento</h3>
+                                <p className="text-xs text-gray-600">Selecciona el motivo por el cual se deja de dar seguimiento a esta persona:</p>
+                                
+                                <div className="space-y-2">
+                                    {[
+                                        "Nuevo miembro",
+                                        "Eligió otra congregación",
+                                        "No muestra interés ni contesta",
+                                        "Dijo expresamente que no quiere congregarse ni que le escribamos",
+                                        "Otros motivos"
+                                    ].map(motivo => (
+                                        <label key={motivo} className="flex items-center gap-2 text-xs font-medium text-gray-800 cursor-pointer p-2 rounded hover:bg-gray-50 border">
+                                            <input 
+                                                type="radio" 
+                                                name="archiveMotivo" 
+                                                value={motivo} 
+                                                checked={archiveMotivo === motivo}
+                                                onChange={e => setArchiveMotivo(e.target.value)}
+                                            />
+                                            {motivo}
+                                        </label>
+                                    ))}
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 mb-1">Observaciones (Opcional)</label>
+                                    <textarea 
+                                        rows="2" 
+                                        value={archiveObs} 
+                                        onChange={e => setArchiveObs(e.target.value)} 
+                                        className="w-full p-2 border rounded text-xs" 
+                                        placeholder="Detalles adicionales..."
+                                    ></textarea>
+                                </div>
+
+                                <div className="flex justify-end gap-2 pt-3 border-t">
+                                    <button onClick={() => setShowArchiveModal(false)} className="px-3 py-1.5 border rounded text-xs">Cancelar</button>
+                                    <button onClick={handleConfirmArchive} className="px-4 py-1.5 bg-amber-600 text-white rounded text-xs font-bold hover:bg-amber-700">Confirmar Archivo</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* MODAL FLOTANTE GENERAL DE INFORMACIÓN (ℹ️) */}
+                    {infoModal && (
+                        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+                            <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl border border-gray-100">
+                                <div className="flex justify-between items-center border-b pb-3">
+                                    <h3 className="font-bold text-gray-900 text-base flex items-center gap-2">
+                                        ℹ️ {infoModal.title}
+                                    </h3>
+                                    <button onClick={() => setInfoModal(null)} className="text-gray-400 font-bold hover:text-gray-700 text-lg">✕</button>
+                                </div>
+                                <p className="text-sm text-gray-600 leading-relaxed">
+                                    {infoModal.text}
+                                </p>
+                                <div className="flex justify-end pt-2">
+                                    <button 
+                                        onClick={() => setInfoModal(null)} 
+                                        className="bg-brandBlue text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-900 transition shadow"
+                                    >
+                                        Entendido
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
