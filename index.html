@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Seguimiento | La Casa del Alfarero</title>
+    <title>Sistema de Seguimiento | La Casa del Alfarero, Las Piedras, Uruguay</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -16,8 +16,9 @@
             theme: {
                 extend: {
                     colors: {
-                        brandRed: '#C8102E',
-                        brandBlue: '#2E4A78',
+                        brandRed: '#0038A8',
+                        brandBlue: '#0284C7',
+                        uyGold: '#D97706',
                     }
                 }
             }
@@ -29,15 +30,15 @@
 
     <script type="text/babel">
         // ==========================================
-        // CONFIGURACIÓN DE FIREBASE
+        // CONFIGURACIÓN DE FIREBASE (URUGUAY)
         // ==========================================
         const firebaseConfig = {
-            apiKey: "AIzaSyCpy8H7bwtRPumLGmmDaTdouxrEPu9MPSY",
-            authDomain: "seguimiento-jose-c-paz.firebaseapp.com",
-            projectId: "seguimiento-jose-c-paz",
-            storageBucket: "seguimiento-jose-c-paz.firebasestorage.app",
-            messagingSenderId: "217508939664",
-            appId: "1:217508939664:web:0bc4ad5fbf8d46267c1515"
+            apiKey: "AIzaSyBw9I2J3Xu2EMXI2YjG92jrGZTNO-id6Is",
+            authDomain: "seguimiento-las-piedras-uy.firebaseapp.com",
+            projectId: "seguimiento-las-piedras-uy",
+            storageBucket: "seguimiento-las-piedras-uy.firebasestorage.app",
+            messagingSenderId: "237282428994",
+            appId: "1:237282428994:web:f0901473818fd5a3e2c5db"
         };
 
         if (!firebase.apps.length) {
@@ -70,6 +71,53 @@
             "Traspaso": "La persona es un congregante de otra iglesia y por razones particulares busca otro lugar en la que seguir congregando."
         };
 
+        const pasosInstructivo = [
+            {
+                titulo: "1. Dashboard y Filtro por Canales",
+                icono: "📊",
+                descripcion: "Al entrar ves el resumen de fichas activas, interesados, invitados y archivados. Podés tocar cualquiera de las tarjetas o los 5 canales de invitación para ir directo al listado filtrado."
+            },
+            {
+                titulo: "2. Personas y Botón Flotante '+ Nueva Ficha'",
+                icono: "👥",
+                descripcion: "Usá el botón '+ Nueva Ficha' (abajo a la derecha) para cargar nuevas personas. En 'Personas' podés buscar por nombre, dirección o perfil, filtrar por nivel o canal, y compartir el versículo diario por WhatsApp."
+            },
+            {
+                titulo: "3. Ficha Detallada, Historial y Notas",
+                icono: "📋",
+                descripcion: "Dentro de cada ficha tenés acceso rápido a WhatsApp (con mensaje según género) y Google Maps ('Cómo llegar'). Registrá Llamadas, Mensajes, Visitas o 'Conversación directa', completá 'Nota para el Colaborador / Observaciones' y, si sos pastor, usá 'Comentarios Privados del Pastor'."
+            },
+            {
+                titulo: "4. Archivados y Restauración",
+                icono: "📁",
+                descripcion: "Cuando un seguimiento se detiene (por ejemplo, 'Nuevo miembro' o 'Eligió otra congregación'), archivá la ficha indicando el motivo y observaciones. Siempre podés restaurarla desde 'Archivados'."
+            },
+            {
+                titulo: "5. Cargar y Ver Oraciones",
+                icono: "🙏",
+                descripcion: "En 'Cargar Oración' registrá tus motivos personales por categoría (con uno o varios motivos y detalles). En 'Ver Oraciones' consultás tus peticiones privadas y también las peticiones de oración cargadas en las fichas activas."
+            },
+            {
+                titulo: "6. Niveles, Canales, Notificaciones y Admin",
+                icono: "🔔",
+                descripcion: "En 'Niveles y Canales' tenés la explicación de cada etapa (1 al 8) y cada canal de llegada. La campanita '🔔' avisa novedades importantes, y como Pastor administrás 'Colaboradores' y 'Usuarios Admin' (incluyendo solicitudes de clave)."
+            }
+        ];
+
+        function TituloIglesiaUruguay({ className = "" }) {
+            return (
+                <span className={`inline-flex flex-wrap items-baseline gap-x-1.5 ${className}`}>
+                    <span className="text-[#0038A8] font-extrabold">La Casa del Alfarero</span>
+                    <span className="text-[#D97706] font-extrabold">,</span>
+                    <span className="text-[#0284C7] font-extrabold">Las Piedras</span>
+                    <span className="text-[#D97706] font-extrabold">,</span>
+                    <span className="bg-gradient-to-r from-[#0038A8] via-[#0284C7] to-[#D97706] bg-clip-text text-transparent font-black">
+                        Uruguay
+                    </span>
+                </span>
+            );
+        }
+
         function App() {
             const [usuarios, setUsuarios] = React.useState([]);
             const [personas, setPersonas] = React.useState([]);
@@ -79,6 +127,18 @@
 
             // Estado para el modal flotante de información
             const [infoModal, setInfoModal] = React.useState(null);
+
+            // Estado para el instructivo de bienvenida
+            const [showInstructivoModal, setShowInstructivoModal] = React.useState(false);
+            const [noMostrarInstructivoCheck, setNoMostrarInstructivoCheck] = React.useState(false);
+            const [ocultarInstructivoPorUsuario, setOcultarInstructivoPorUsuario] = React.useState(() => {
+                try {
+                    const saved = localStorage.getItem('alfarero_uy_hide_instructivo');
+                    return saved ? JSON.parse(saved) : {};
+                } catch (e) {
+                    return {};
+                }
+            });
 
             // Estado para el panel desplegable de notificaciones
             const [showNotificationsPanel, setShowNotificationsPanel] = React.useState(false);
@@ -92,7 +152,7 @@
             // Estado de Sesión en el navegador actual
             const [currentUser, setCurrentUser] = React.useState(() => {
                 try {
-                    const saved = localStorage.getItem('alfarero_current_user');
+                    const saved = localStorage.getItem('alfarero_uy_current_user');
                     return saved ? JSON.parse(saved) : null;
                 } catch (e) {
                     return null;
@@ -102,7 +162,7 @@
             // IDs de notificaciones leídas por usuario
             const [readNotificationIds, setReadNotificationIds] = React.useState(() => {
                 try {
-                    const saved = localStorage.getItem('alfarero_read_notifs');
+                    const saved = localStorage.getItem('alfarero_uy_read_notifs');
                     return saved ? JSON.parse(saved) : {};
                 } catch (e) {
                     return {};
@@ -175,16 +235,21 @@
             const [editingPasswordUserId, setEditingPasswordUserId] = React.useState(null);
             const [newPasswordValue, setNewPasswordValue] = React.useState('');
 
-            // Sincronización con Firestore
+            // Sincronización con Firestore (crea únicamente el usuario pastor si está vacío)
             React.useEffect(() => {
                 const unsubUsuarios = db.collection('usuarios').onSnapshot(snapshot => {
                     const lista = snapshot.docs.map(doc => ({ idDoc: doc.id, ...doc.data() }));
                     if (lista.length === 0) {
-                        const iniciales = [
-                            { id: 1, usuario: "pastor", clave: "1234", nombre: "Pastor / Administración", rol: "pastor", debeCambiarClave: false },
-                            { id: 2, usuario: "tatiana", clave: "1234", nombre: "Tatiana Cariddi", rol: "colaborador", debeCambiarClave: false }
-                        ];
-                        iniciales.forEach(u => db.collection('usuarios').add(u));
+                        const usuarioInicialPastor = {
+                            id: 1,
+                            usuario: "pastor",
+                            clave: "1234",
+                            nombre: "Pastor / Administración",
+                            rol: "pastor",
+                            debeCambiarClave: true,
+                            ocultarInstructivo: false
+                        };
+                        db.collection('usuarios').add(usuarioInicialPastor);
                     } else {
                         setUsuarios(lista);
                     }
@@ -193,7 +258,7 @@
                 const unsubPersonas = db.collection('personas').onSnapshot(snapshot => {
                     const lista = snapshot.docs.map(doc => ({ idDoc: doc.id, ...doc.data() }));
                     setPersonas(lista);
-                    
+
                     setSelectedPerson(prev => {
                         if (!prev) return null;
                         const actualizada = lista.find(p => p.idDoc === prev.idDoc || p.id === prev.id);
@@ -226,7 +291,9 @@
             // Control del botón Atrás (historial del navegador móvil)
             React.useEffect(() => {
                 const handlePopState = () => {
-                    if (showNotificationsPanel) {
+                    if (showInstructivoModal) {
+                        setShowInstructivoModal(false);
+                    } else if (showNotificationsPanel) {
                         setShowNotificationsPanel(false);
                     } else if (infoModal) {
                         setInfoModal(null);
@@ -244,21 +311,73 @@
 
                 window.addEventListener('popstate', handlePopState);
                 return () => window.removeEventListener('popstate', handlePopState);
-            }, [showNotificationsPanel, infoModal, showArchiveModal, showNewPersonModal, selectedPerson, activeTab]);
+            }, [showInstructivoModal, showNotificationsPanel, infoModal, showArchiveModal, showNewPersonModal, selectedPerson, activeTab]);
 
             React.useEffect(() => {
                 if (currentUser) {
-                    localStorage.setItem('alfarero_current_user', JSON.stringify(currentUser));
+                    localStorage.setItem('alfarero_uy_current_user', JSON.stringify(currentUser));
                 } else {
-                    localStorage.removeItem('alfarero_current_user');
+                    localStorage.removeItem('alfarero_uy_current_user');
                 }
             }, [currentUser]);
 
             React.useEffect(() => {
                 try {
-                    localStorage.setItem('alfarero_read_notifs', JSON.stringify(readNotificationIds));
+                    localStorage.setItem('alfarero_uy_read_notifs', JSON.stringify(readNotificationIds));
                 } catch (e) {}
             }, [readNotificationIds]);
+
+            React.useEffect(() => {
+                try {
+                    localStorage.setItem('alfarero_uy_hide_instructivo', JSON.stringify(ocultarInstructivoPorUsuario));
+                } catch (e) {}
+            }, [ocultarInstructivoPorUsuario]);
+
+            // Mostrar instructivo de bienvenida al iniciar sesión si no está oculto y no exige cambio de clave
+            React.useEffect(() => {
+                if (!currentUser || currentUser.debeCambiarClave) {
+                    setShowInstructivoModal(false);
+                    return;
+                }
+                const userKey = (currentUser.usuario || currentUser.nombre || '').toString().trim().toLowerCase();
+                const ocultoLocal = !!ocultarInstructivoPorUsuario[userKey];
+                const ocultoDb = !!currentUser.ocultarInstructivo;
+                if (!ocultoLocal && !ocultoDb) {
+                    setNoMostrarInstructivoCheck(false);
+                    setShowInstructivoModal(true);
+                }
+            }, [currentUser]);
+
+            const handleAbrirInstructivo = () => {
+                if (!currentUser) return;
+                const userKey = (currentUser.usuario || currentUser.nombre || '').toString().trim().toLowerCase();
+                setNoMostrarInstructivoCheck(!!ocultarInstructivoPorUsuario[userKey] || !!currentUser.ocultarInstructivo);
+                setShowInstructivoModal(true);
+            };
+
+            const handleCerrarInstructivo = async () => {
+                if (currentUser) {
+                    const userKey = (currentUser.usuario || currentUser.nombre || '').toString().trim().toLowerCase();
+                    setOcultarInstructivoPorUsuario(prev => ({
+                        ...prev,
+                        [userKey]: noMostrarInstructivoCheck
+                    }));
+                    const updatedUser = { ...currentUser, ocultarInstructivo: noMostrarInstructivoCheck };
+                    setCurrentUser(updatedUser);
+
+                    const userDoc = usuarios.find(u => (u.usuario || '').toLowerCase() === userKey);
+                    if (userDoc && userDoc.idDoc) {
+                        try {
+                            await db.collection('usuarios').doc(userDoc.idDoc).update({
+                                ocultarInstructivo: noMostrarInstructivoCheck
+                            });
+                        } catch (e) {
+                            console.error("Error guardando preferencia de instructivo:", e);
+                        }
+                    }
+                }
+                setShowInstructivoModal(false);
+            };
 
             // Usuarios únicos sin duplicados (por usuario o nombre normalizado)
             const usuariosUnicos = React.useMemo(() => {
@@ -446,6 +565,7 @@
             const handleLogout = () => {
                 setCurrentUser(null);
                 setShowNotificationsPanel(false);
+                setShowInstructivoModal(false);
                 setActiveTab('dashboard');
             };
 
@@ -576,7 +696,7 @@
                 e.preventDefault();
                 if (selectedPerson && selectedPerson.idDoc) {
                     const grNum = parseInt(selectedPerson.grado);
-                    
+
                     const editItem = {
                         id: Date.now(),
                         tipo: 'Actualización',
@@ -751,7 +871,8 @@
                     usuario: newUserData.usuario.toLowerCase().trim(),
                     clave: newUserData.clave,
                     rol: newUserData.rol,
-                    debeCambiarClave: true
+                    debeCambiarClave: true,
+                    ocultarInstructivo: false
                 };
 
                 await db.collection('usuarios').add(newUser);
@@ -836,6 +957,9 @@
                         <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-gray-200 p-8 space-y-6">
                             <div className="text-center space-y-3">
                                 <img src="Logo La Casa del Alfarero.png" alt="Logo" className="h-20 mx-auto object-contain" onError={(e)=>{e.target.style.display='none';}} />
+                                <h1 className="text-lg sm:text-xl leading-snug">
+                                    <TituloIglesiaUruguay />
+                                </h1>
                                 <p className="text-xs font-semibold text-brandRed uppercase tracking-wider">Sistema de seguimiento de almas</p>
                             </div>
 
@@ -867,7 +991,7 @@
                                         className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brandRed"
                                     />
                                 </div>
-                                <button type="submit" className="w-full bg-brandRed text-white font-bold py-3 rounded-lg hover:bg-red-700 transition shadow">
+                                <button type="submit" className="w-full bg-brandRed text-white font-bold py-3 rounded-lg hover:bg-blue-900 transition shadow">
                                     Ingresar a la Plataforma
                                 </button>
 
@@ -891,7 +1015,7 @@
                                         <button onClick={() => setShowForgotModal(false)} className="text-gray-400 font-bold">✕</button>
                                     </div>
                                     <p className="text-xs text-gray-600">Ingresa tu nombre de usuario para notificar al administrador que necesitas un cambio de clave.</p>
-                                    
+
                                     <form onSubmit={handleRequestPasswordReset} className="space-y-3">
                                         {forgotSuccessMsg && (
                                             <div className="bg-emerald-50 text-emerald-800 text-xs p-2 rounded border border-emerald-200 font-semibold">
@@ -911,7 +1035,7 @@
                                         </div>
                                         <div className="flex justify-end gap-2 pt-2">
                                             <button type="button" onClick={() => setShowForgotModal(false)} className="px-3 py-1.5 border rounded text-xs">Cancelar</button>
-                                            <button type="submit" className="px-3 py-1.5 bg-brandBlue text-white rounded text-xs font-bold hover:bg-blue-900">Enviar Solicitud</button>
+                                            <button type="submit" className="px-3 py-1.5 bg-brandBlue text-white rounded text-xs font-bold hover:bg-sky-700">Enviar Solicitud</button>
                                         </div>
                                     </form>
                                 </div>
@@ -959,7 +1083,7 @@
                                         className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brandRed"
                                     />
                                 </div>
-                                <button type="submit" className="w-full bg-brandRed text-white font-bold py-3 rounded-lg hover:bg-red-700 transition shadow">
+                                <button type="submit" className="w-full bg-brandRed text-white font-bold py-3 rounded-lg hover:bg-blue-900 transition shadow">
                                     Guardar y Continuar
                                 </button>
                             </form>
@@ -975,7 +1099,7 @@
                 <div className="min-h-screen flex flex-col bg-gray-100 relative pb-20">
                     <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-30">
                         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex flex-col lg:flex-row lg:justify-between lg:items-center gap-2.5 lg:gap-4">
-                            {/* Fila 1: Marca + Acciones rápidas (campanita y salir) */}
+                            {/* Fila 1: Marca + Acciones rápidas (instructivo, campanita y salir) */}
                             <div className="flex items-center justify-between w-full lg:w-auto gap-3">
                                 <div className="flex items-center gap-2.5 min-w-0">
                                     <img
@@ -985,8 +1109,8 @@
                                         onError={(e) => { e.target.style.display = 'none'; }}
                                     />
                                     <div className="min-w-0">
-                                        <h1 className="text-sm sm:text-base font-bold text-gray-900 leading-tight truncate">
-                                            La Casa del Alfarero
+                                        <h1 className="text-xs sm:text-base leading-tight truncate">
+                                            <TituloIglesiaUruguay />
                                         </h1>
                                         <p className="text-[11px] sm:text-xs text-gray-500 font-semibold truncate">
                                             {currentUser.nombre} • {currentUser.rol === 'pastor' ? 'Pastor / Admin' : 'Colaborador'}
@@ -994,8 +1118,18 @@
                                     </div>
                                 </div>
 
-                                {/* Campanita + Cerrar sesión (siempre alineados arriba a la derecha) */}
+                                {/* Instructivo + Campanita + Cerrar sesión */}
                                 <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                                    <button
+                                        type="button"
+                                        onClick={handleAbrirInstructivo}
+                                        title="Ver instructivo de bienvenida"
+                                        className="p-2 rounded-lg border border-sky-200 bg-sky-50 text-brandBlue hover:bg-sky-100 text-xs font-bold transition flex items-center gap-1 whitespace-nowrap"
+                                    >
+                                        <span>❓</span>
+                                        <span className="hidden md:inline">Instructivo</span>
+                                    </button>
+
                                     <div className="relative">
                                         <button
                                             type="button"
@@ -1153,6 +1287,13 @@
                                 >
                                     📖 Ver Oraciones
                                 </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('guia')}
+                                    className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap shrink-0 ${activeTab === 'guia' ? 'bg-uyGold text-white shadow' : 'text-gray-700 hover:bg-gray-200'}`}
+                                >
+                                    📚 Niveles y Canales
+                                </button>
                                 {currentUser.rol === 'pastor' && (
                                     <>
                                         <button
@@ -1183,7 +1324,7 @@
                     {/* Botón Flotante Siempre Visible */}
                     <button 
                         onClick={() => setShowNewPersonModal(true)}
-                        className="fixed bottom-6 right-6 bg-brandRed text-white font-bold px-5 py-3 rounded-full shadow-2xl hover:bg-red-700 transition flex items-center gap-2 z-40"
+                        className="fixed bottom-6 right-6 bg-brandRed text-white font-bold px-5 py-3 rounded-full shadow-2xl hover:bg-blue-900 transition flex items-center gap-2 z-40"
                     >
                         <span className="text-xl leading-none">+</span> Nueva Ficha
                     </button>
@@ -1191,16 +1332,19 @@
                     <main className="max-w-7xl mx-auto px-4 py-6 flex-1 w-full space-y-6">
                         {activeTab === 'dashboard' && (
                             <div className="space-y-6">
-                                <div className="bg-gradient-to-r from-brandBlue to-blue-900 rounded-2xl p-6 text-white shadow-md flex justify-between items-center">
-                                    <div>
-                                        <h2 className="text-2xl font-bold mb-1">Bienvenido, {currentUser.nombre}</h2>
+                                <div className="bg-gradient-to-r from-[#0038A8] via-[#0284C7] to-blue-950 rounded-2xl p-6 text-white shadow-md flex justify-between items-center border-b-4 border-[#EAB308]">
+                                    <div className="space-y-1">
+                                        <p className="text-[11px] font-bold uppercase tracking-wider text-amber-300">
+                                            La Casa del Alfarero • Las Piedras, Uruguay
+                                        </p>
+                                        <h2 className="text-2xl font-bold">Bienvenido, {currentUser.nombre}</h2>
                                         <p className="text-blue-100 text-xs">Registro y seguimiento consciente de las almas.</p>
                                     </div>
                                     <img src="Logo La Casa del Alfarero.png" alt="Logo" className="h-16 brightness-200 opacity-30 hidden sm:block" onError={(e)=>{e.target.style.display='none';}} />
                                 </div>
 
                                 {/* Frase Fija */}
-                                <div className="bg-blue-50 border-l-4 border-brandBlue p-4 rounded-xl shadow-sm text-sm text-blue-900 font-medium">
+                                <div className="bg-blue-50 border-l-4 border-brandBlue p-4 rounded-xl shadow-sm text-sm text-blue-950 font-medium">
                                     💡 Recuerda orar por tus seguimientos, todo lo que hagas por ellos, dará fruto a través de tu oración.
                                 </div>
 
@@ -1242,7 +1386,16 @@
 
                                 {/* Accesos Directos Interactivos por Canal de Invitación */}
                                 <div className="bg-white p-6 rounded-xl shadow-sm border space-y-4">
-                                    <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Filtro rápido por Canales de Invitación</h3>
+                                    <div className="flex justify-between items-center gap-2 flex-wrap">
+                                        <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Filtro rápido por Canales de Invitación</h3>
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveTab('guia')}
+                                            className="text-xs font-bold text-brandBlue hover:underline"
+                                        >
+                                            Ver definiciones de niveles y canales ➔
+                                        </button>
+                                    </div>
                                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                                         {Object.keys(canalesDesc).map(canalName => {
                                             const count = personasActivas.filter(p => p.canal === canalName).length;
@@ -1271,7 +1424,7 @@
                                         <p className="text-sm font-serif italic text-emerald-950">"{versiculoHoy.texto}" ({versiculoHoy.cita})</p>
                                     </div>
                                     <a 
-                                        href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`Hola! Quería compartir este hermoso versículo de aliento contigo hoy: "${versiculoHoy.texto}" (${versiculoHoy.cita}) - Iglesia La Casa del Alfarero`)}`} 
+                                        href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`Hola! Quería compartir este hermoso versículo de aliento contigo hoy: "${versiculoHoy.texto}" (${versiculoHoy.cita}) - Iglesia La Casa del Alfarero, Las Piedras, Uruguay`)}`} 
                                         target="_blank" 
                                         rel="noopener noreferrer" 
                                         className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow transition flex items-center gap-2 whitespace-nowrap"
@@ -1446,7 +1599,7 @@
                                             <button 
                                                 type="button" 
                                                 onClick={handleAddItemOracion}
-                                                className="bg-brandBlue text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-blue-900 transition flex items-center gap-1 shadow-sm"
+                                                className="bg-brandBlue text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-sky-700 transition flex items-center gap-1 shadow-sm"
                                             >
                                                 <span>+</span> Agregar otro motivo
                                             </button>
@@ -1496,7 +1649,7 @@
 
                                     <div className="flex justify-end gap-3 pt-4 border-t">
                                         <button type="button" onClick={() => setActiveTab('verOraciones')} className="px-5 py-2.5 border rounded-xl text-xs font-semibold">Ver mis oraciones</button>
-                                        <button type="submit" className="px-6 py-2.5 bg-brandRed text-white rounded-xl text-xs font-bold hover:bg-red-700 shadow transition">Guardar Temas de Oración</button>
+                                        <button type="submit" className="px-6 py-2.5 bg-brandRed text-white rounded-xl text-xs font-bold hover:bg-blue-900 shadow transition">Guardar Temas de Oración</button>
                                     </div>
                                 </form>
                             </div>
@@ -1524,7 +1677,7 @@
                                             </select>
                                             <button 
                                                 onClick={() => setActiveTab('cargarOracion')}
-                                                className="bg-brandRed text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-red-700 shadow transition whitespace-nowrap"
+                                                className="bg-brandRed text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-blue-900 shadow transition whitespace-nowrap"
                                             >
                                                 ➕ Cargar Nueva Oración
                                             </button>
@@ -1608,13 +1761,69 @@
                                                     </div>
                                                     <button 
                                                         onClick={() => { setSelectedPerson(p); setIsEditingPerson(false); }}
-                                                        className="bg-brandBlue text-white font-bold px-3 py-1.5 rounded-lg hover:bg-blue-900 transition whitespace-nowrap"
+                                                        className="bg-brandBlue text-white font-bold px-3 py-1.5 rounded-lg hover:bg-sky-700 transition whitespace-nowrap"
                                                     >
                                                         Ver Ficha
                                                     </button>
                                                 </div>
                                             ))
                                         )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* PESTAÑA: DEFINICIONES DE NIVELES / CATEGORÍAS Y CANALES DE CONTACTO */}
+                        {activeTab === 'guia' && (
+                            <div className="space-y-6">
+                                <div className="bg-white p-6 rounded-2xl shadow-sm border space-y-6">
+                                    <div className="border-b pb-4">
+                                        <h2 className="text-xl font-bold text-gray-900">📚 Niveles / Categorías de Seguimiento y Canales de Contacto</h2>
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            Guía de referencia para unificar criterios al clasificar el proceso de cada persona y el origen de su llegada a <TituloIglesiaUruguay className="font-bold" />.
+                                        </p>
+                                    </div>
+
+                                    {/* 8 Niveles / Categorías */}
+                                    <div className="space-y-3">
+                                        <h3 className="text-sm font-extrabold text-brandRed uppercase tracking-wide">
+                                            Niveles / Categorías de Seguimiento (1 al 8)
+                                        </h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {Object.entries(gradosMap).map(([num, nombreNivel]) => (
+                                                <div key={num} className="p-4 rounded-xl border border-blue-100 bg-blue-50/40 space-y-1.5">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="bg-brandRed text-white text-xs font-extrabold w-6 h-6 rounded-full flex items-center justify-center shrink-0">
+                                                            {num}
+                                                        </span>
+                                                        <h4 className="font-bold text-gray-900 text-sm">{nombreNivel}</h4>
+                                                    </div>
+                                                    <p className="text-xs text-gray-700 leading-relaxed pl-8">
+                                                        {gradosDesc[num]}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* 5 Canales de Contacto */}
+                                    <div className="space-y-3 pt-4 border-t">
+                                        <h3 className="text-sm font-extrabold text-brandBlue uppercase tracking-wide">
+                                            Canales de Contacto / Invitación (5)
+                                        </h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {Object.entries(canalesDesc).map(([nombreCanal, descCanal]) => (
+                                                <div key={nombreCanal} className="p-4 rounded-xl border border-amber-200 bg-amber-50/40 space-y-1.5">
+                                                    <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                                                        <span className="w-2 h-2 rounded-full bg-uyGold"></span>
+                                                        {nombreCanal}
+                                                    </h4>
+                                                    <p className="text-xs text-gray-700 leading-relaxed">
+                                                        {descCanal}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1740,7 +1949,7 @@
                                             </select>
                                         </div>
                                         <div className="md:col-span-2">
-                                            <button type="submit" className="bg-brandBlue text-white font-bold px-4 py-2 rounded text-sm hover:bg-blue-900 transition">
+                                            <button type="submit" className="bg-brandBlue text-white font-bold px-4 py-2 rounded text-sm hover:bg-sky-700 transition">
                                                 + Registrar Usuario en la Nube
                                             </button>
                                         </div>
@@ -1786,6 +1995,68 @@
                             </div>
                         )}
                     </main>
+
+                    {/* MODAL FLOTANTE DE BIENVENIDA / INSTRUCTIVO */}
+                    {showInstructivoModal && (
+                        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+                            <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200">
+                                <div className="flex justify-between items-start border-b pb-3 gap-3">
+                                    <div>
+                                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-brandBlue">
+                                            Recorrido de Bienvenida
+                                        </span>
+                                        <h3 className="text-lg sm:text-xl font-bold text-gray-900">
+                                            Cómo usar <TituloIglesiaUruguay className="text-base sm:text-lg" />
+                                        </h3>
+                                        <p className="text-xs text-gray-500 mt-0.5">
+                                            Guía rápida por cada herramienta del sistema. Podés volver a abrirla cuando quieras desde <strong>❓ Instructivo</strong>.
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleCerrarInstructivo}
+                                        className="text-gray-400 hover:text-gray-700 font-bold text-lg px-1"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                                    {pasosInstructivo.map((paso, idx) => (
+                                        <div key={idx} className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-1.5">
+                                            <h4 className="text-xs font-extrabold text-gray-900 flex items-center gap-2">
+                                                <span className="text-base">{paso.icono}</span>
+                                                <span>{paso.titulo}</span>
+                                            </h4>
+                                            <p className="text-xs text-gray-600 leading-relaxed">
+                                                {paso.descripcion}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="pt-4 border-t flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                    <label className="flex items-center gap-2 text-xs font-semibold text-gray-700 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={noMostrarInstructivoCheck}
+                                            onChange={(e) => setNoMostrarInstructivoCheck(e.target.checked)}
+                                            className="rounded border-gray-300 text-brandRed focus:ring-brandRed w-4 h-4"
+                                        />
+                                        <span>No mostrar más al iniciar sesión</span>
+                                    </label>
+
+                                    <button
+                                        type="button"
+                                        onClick={handleCerrarInstructivo}
+                                        className="bg-brandRed text-white font-bold px-5 py-2.5 rounded-xl text-xs hover:bg-blue-900 transition shadow w-full sm:w-auto"
+                                    >
+                                        Entendido, comenzar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* MODAL CREAR NUEVA FICHA */}
                     {showNewPersonModal && (
@@ -1851,11 +2122,11 @@
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <label className="block text-xs font-bold text-gray-700 mb-1">Teléfono / WhatsApp</label>
-                                            <input type="text" value={newPersonData.telefono} onChange={e=>setNewPersonData({...newPersonData, telefono: e.target.value})} className="w-full p-2 border rounded text-sm" placeholder="Ej: 54911xxxxxxxx" />
+                                            <input type="text" value={newPersonData.telefono} onChange={e=>setNewPersonData({...newPersonData, telefono: e.target.value})} className="w-full p-2 border rounded text-sm" placeholder="Ej: 5989xxxxxxxx" />
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-gray-700 mb-1">Dirección (Ubicación)</label>
-                                            <input type="text" value={newPersonData.direccion} onChange={e=>setNewPersonData({...newPersonData, direccion: e.target.value})} className="w-full p-2 border rounded text-sm" placeholder="Ej: Av. San Martín 1234" />
+                                            <input type="text" value={newPersonData.direccion} onChange={e=>setNewPersonData({...newPersonData, direccion: e.target.value})} className="w-full p-2 border rounded text-sm" placeholder="Ej: Av. Artigas 123, Las Piedras" />
                                         </div>
                                     </div>
                                     <div>
@@ -1890,7 +2161,7 @@
                                     )}
                                     <div className="flex justify-end gap-2 pt-3 border-t">
                                         <button type="button" onClick={() => setShowNewPersonModal(false)} className="px-4 py-2 border rounded text-xs font-semibold">Cancelar</button>
-                                        <button type="submit" className="px-4 py-2 bg-brandRed text-white rounded text-xs font-bold hover:bg-red-700">Guardar Ficha</button>
+                                        <button type="submit" className="px-4 py-2 bg-brandRed text-white rounded text-xs font-bold hover:bg-blue-900">Guardar Ficha</button>
                                     </div>
                                 </form>
                             </div>
@@ -1945,7 +2216,7 @@
                                                 <p className="text-gray-700 text-xs">{selectedPerson.telefono ? `Tel: ${selectedPerson.telefono}` : 'Número de teléfono no cargado'}</p>
                                             </div>
                                             <a 
-                                                href={`https://api.whatsapp.com/send?phone=${selectedPerson.telefono || ''}&text=${encodeURIComponent(`Hola ${selectedPerson.nombre}! Te escribo de parte de la iglesia La Casa del Alfarero para saludarte y saber cómo estás.`)}`} 
+                                                href={`https://api.whatsapp.com/send?phone=${selectedPerson.telefono || ''}&text=${encodeURIComponent(`Hola ${selectedPerson.nombre}! Te escribo de parte de la iglesia La Casa del Alfarero, Las Piedras, Uruguay para saludarte y saber cómo estás.`)}`} 
                                                 target="_blank" 
                                                 rel="noopener noreferrer" 
                                                 className={`bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow transition flex items-center gap-2 ${!selectedPerson.telefono ? 'opacity-75' : ''}`}
@@ -1980,7 +2251,7 @@
                                         {/* LÍNEA DE TIEMPO / HISTORIAL COMPLETO DE INTERACCIONES */}
                                         <div className="bg-gray-50 p-4 rounded-xl border space-y-3">
                                             <h4 className="font-bold text-xs text-gray-700 uppercase">📋 Historial Completo de Conversaciones, Llamadas, Mensajes y Visitas</h4>
-                                            
+
                                             {/* Formulario rápido para agregar nueva interacción */}
                                             <form onSubmit={handleAddHistorialItem} className="bg-white p-3 rounded-lg border space-y-2">
                                                 <p className="text-[11px] font-bold text-brandBlue uppercase">Agregar nueva interacción:</p>
@@ -2001,7 +2272,7 @@
                                                         onChange={e => setNuevoHistorial({...nuevoHistorial, fecha: e.target.value})}
                                                         className="p-1.5 border rounded text-xs"
                                                     />
-                                                    <button type="submit" className="bg-brandBlue text-white font-bold px-3 py-1.5 rounded text-xs hover:bg-blue-900 transition">
+                                                    <button type="submit" className="bg-brandBlue text-white font-bold px-3 py-1.5 rounded text-xs hover:bg-sky-700 transition">
                                                         + Registrar
                                                     </button>
                                                 </div>
@@ -2046,7 +2317,7 @@
                                                     href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedPerson.direccion)}`} 
                                                     target="_blank" 
                                                     rel="noopener noreferrer" 
-                                                    className="bg-brandBlue text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-blue-900 transition flex items-center gap-1 shadow"
+                                                    className="bg-brandBlue text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-sky-700 transition flex items-center gap-1 shadow"
                                                 >
                                                     🗺️ Cómo llegar
                                                 </a>
@@ -2218,7 +2489,7 @@
 
                                         <div className="flex justify-end gap-2 pt-3 border-t">
                                             <button type="button" onClick={() => setIsEditingPerson(false)} className="px-3 py-1.5 border rounded text-xs">Cancelar</button>
-                                            <button type="submit" className="px-4 py-1.5 bg-brandRed text-white rounded text-xs font-bold hover:bg-red-700">Guardar Cambios</button>
+                                            <button type="submit" className="px-4 py-1.5 bg-brandRed text-white rounded text-xs font-bold hover:bg-blue-900">Guardar Cambios</button>
                                         </div>
                                     </form>
                                 )}
@@ -2236,7 +2507,7 @@
                             <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
                                 <h3 className="font-bold text-gray-900 text-base border-b pb-2">📁 Archivar Seguimiento</h3>
                                 <p className="text-xs text-gray-600">Selecciona el motivo por el cual se deja de dar seguimiento a esta persona:</p>
-                                
+
                                 <div className="space-y-2">
                                     {[
                                         "Nuevo miembro",
@@ -2293,7 +2564,7 @@
                                 <div className="flex justify-end pt-2">
                                     <button 
                                         onClick={() => setInfoModal(null)} 
-                                        className="bg-brandBlue text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-900 transition shadow"
+                                        className="bg-brandBlue text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-sky-700 transition shadow"
                                     >
                                         Entendido
                                     </button>
