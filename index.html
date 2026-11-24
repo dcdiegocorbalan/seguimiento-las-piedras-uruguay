@@ -1335,7 +1335,7 @@
                     <main className="max-w-7xl mx-auto px-4 py-6 flex-1 w-full space-y-6">
                         {activeTab === 'dashboard' && (
                             <div className="space-y-6">
-                                <div className="bg-gradient-to-r from-[#0038A8] via-[#0284C7] to-blue-950 rounded-2xl p-6 text-white shadow-md flex justify-between items-center border-b-4 border-[#EAB308]">
+                                <div className="bg-gradient-to-r from-[#0038A8] via-[#0284C7] to-blue-950 rounded-2xl p-6 text-white shadow-md flex justify-between items-center gap-4 border-b-4 border-[#EAB308]">
                                     <div className="space-y-1">
                                         <p className="text-[11px] font-bold uppercase tracking-wider text-amber-300">
                                             La Casa del Alfarero • Las Piedras, Uruguay
@@ -1343,7 +1343,14 @@
                                         <h2 className="text-2xl font-bold">Bienvenido, {currentUser.nombre}</h2>
                                         <p className="text-blue-100 text-xs">Registro y seguimiento consciente de las almas.</p>
                                     </div>
-                                    <img src="Logo La Casa del Alfarero.png" alt="Logo" className="h-16 brightness-200 opacity-30 hidden sm:block" onError={(e)=>{e.target.style.display='none';}} />
+                                    <div className="bg-white/95 p-2.5 rounded-xl shadow-sm shrink-0 hidden sm:flex items-center justify-center">
+                                        <img
+                                            src="Logo La Casa del Alfarero.png"
+                                            alt="Logo"
+                                            className="h-14 w-auto object-contain"
+                                            onError={(e) => { e.currentTarget.parentElement.style.display = 'none'; }}
+                                        />
+                                    </div>
                                 </div>
 
                                 {/* Frase Fija */}
