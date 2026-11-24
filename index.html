@@ -106,13 +106,16 @@
 
         function TituloIglesiaUruguay({ className = "" }) {
             return (
-                <span className={`inline-flex flex-wrap items-baseline gap-x-1.5 ${className}`}>
-                    <span className="text-[#0038A8] font-extrabold">La Casa del Alfarero</span>
-                    <span className="text-[#D97706] font-extrabold">,</span>
-                    <span className="text-[#0284C7] font-extrabold">Las Piedras</span>
-                    <span className="text-[#D97706] font-extrabold">,</span>
-                    <span className="bg-gradient-to-r from-[#0038A8] via-[#0284C7] to-[#D97706] bg-clip-text text-transparent font-black">
-                        Uruguay
+                <span className={`block w-full text-center leading-tight ${className}`}>
+                    <span className="block text-[#0038A8] font-extrabold">
+                        La Casa del Alfarero
+                    </span>
+                    <span className="inline-flex items-center justify-center gap-1.5 mt-0.5">
+                        <span className="text-[#0284C7] font-bold">Las Piedras</span>
+                        <span className="text-[#D97706] font-extrabold">•</span>
+                        <span className="bg-gradient-to-r from-[#0284C7] via-[#0038A8] to-[#D97706] bg-clip-text text-transparent font-extrabold">
+                            Uruguay
+                        </span>
                     </span>
                 </span>
             );
